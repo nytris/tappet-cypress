@@ -1,0 +1,92 @@
+{
+  "version": "0.1.0-prealpha.1",
+  "name": "@tappet/cypress",
+  "description": "Enjoyable GUI testing with Tappet, using Cypress",
+  "keywords": [
+    "testing",
+    "gui",
+    "e2e",
+    "cypress",
+    "tappet",
+    "nytris"
+  ],
+  "homepage": "https://github.com/nytris/tappet-cypress",
+  "author": "Dan Phillimore <dan@ovms.co> (https://github.com/asmblah)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nytris/tappet-cypress.git"
+  },
+  "bugs": {
+    "email": "dan@ovms.co",
+    "url": "https://github.com/nytris/tappet-cypress/issues"
+  },
+  "main": "uniter/defineConfig.js",
+  "types": "uniter/defineConfig.d.ts",
+  "exports": {
+    ".": {
+      "require": "./uniter/defineConfig.js",
+      "types": "./uniter/defineConfig.d.ts"
+    },
+    "./cypress/plugin": {
+      "require": "./cypress/plugin/index.js",
+      "types": "./cypress/plugin/index.d.ts"
+    },
+    "./uniter/plugin": {
+      "require": "./uniter/plugin/index.js",
+      "types": "./uniter/plugin/index.d.ts"
+    }
+  },
+  "files": [
+    "cypress/**",
+    "uniter/**",
+    "MIT-LICENSE.txt",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc --build src/ts",
+    "build:clean": "tsc --build src/ts --clean",
+    "mocha": "mocha --import=tsx -r mocha-bootstrap --recursive 'test/functional/**/*Test.ts' 'test/integrated/**/*Test.ts' 'test/unit/**/*Test.ts'",
+    "lint:eslint:check": "eslint '{src/ts,test}/**/*.ts' --max-warnings=0",
+    "lint:eslint:fix": "eslint '{src/ts,test}/**/*.ts' --fix",
+    "lint:tsc:check": "tsc --noEmit",
+    "prepublishOnly": "npm test && npm run build:clean && npm run build",
+    "test": "npm run lint:eslint:check && npm run lint:tsc:check && npm run mocha"
+  },
+  "dependencies": {
+    "webpack-uniter-plugin": "^0.0.1"
+  },
+  "peerDependencies": {
+    "@cypress/webpack-preprocessor": ">=6",
+    "phpruntime": "*"
+  },
+  "devDependencies": {
+    "@trivago/prettier-plugin-sort-imports": "^5.2.2",
+    "@types/chai": "^5.2.1",
+    "@types/chai-as-promised": "^8.0.2",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^22.14.1",
+    "@types/sinon": "^17.0.3",
+    "@typescript-eslint/eslint-plugin": "^8.30.1",
+    "@typescript-eslint/parser": "^8.30.1",
+    "buildbelt": "^0.3.0",
+    "chai": "^4.3.10",
+    "chai-as-promised": "^7.1.1",
+    "eslint": "^9.25.0",
+    "eslint-config-prettier": "^10.1.2",
+    "eslint-plugin-prettier": "^5.2.6",
+    "mocha": "^11.1.0",
+    "mocha-bootstrap": "^1.1.1",
+    "phpruntime": "^9.2.1",
+    "prettier": "^3.5.3",
+    "sinon": "^17.0.1",
+    "sinon-chai": "^3.7.0",
+    "ts-mocha": "^11.1.0",
+    "ts-sinon": "^2.0.2",
+    "tsx": "^4.21.0",
+    "typescript": "^5.8.3"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT"
+}

@@ -1,0 +1,20 @@
+.phpunit.cache/
+.phpunit.result.cache
+/tsconfig.tsbuildinfo
+/node_modules/
+/var/
+/vendor/
+
+# TypeScript compiled output.
+/cypress/plugin/*.d.ts
+/cypress/plugin/*.d.ts.map
+/cypress/plugin/*.js
+/cypress/plugin/*.js.map
+/uniter/defineConfig.d.ts
+/uniter/defineConfig.d.ts.map
+/uniter/defineConfig.js
+/uniter/defineConfig.js.map
+/uniter/plugin/*.d.ts
+/uniter/plugin/*.d.ts.map
+/uniter/plugin/*.js
+/uniter/plugin/*.js.map

@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "composite": true,
+    "declarationMap": true,
+    "noEmit": false,
+    "outDir": "../../",
+    "rootDir": "."
+  },
+  "files": [
+    "declarations/modules.d.ts",
+    "cypress/plugin/index.ts",
+    "uniter/defineConfig.ts",
+    "uniter/plugin/index.ts",
+    "uniter/plugin/phpcore.config.ts"
+  ]
+}

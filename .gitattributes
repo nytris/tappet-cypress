@@ -1,0 +1,16 @@
+/.github export-ignore
+/.gitattributes export-ignore
+/.mocharc.cjs export-ignore
+/cypress export-ignore
+/eslint.config.mjs export-ignore
+/node_modules export-ignore
+/package.json export-ignore
+/package-lock.json export-ignore
+/phpunit.xml.dist export-ignore
+/prettier.config.mjs export-ignore
+/src/ts export-ignore
+/test export-ignore
+/tests export-ignore
+/tsconfig.json export-ignore
+/tsconfig.tsbuildinfo export-ignore
+/uniter export-ignore
