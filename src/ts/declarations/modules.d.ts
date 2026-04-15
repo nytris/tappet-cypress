@@ -7,6 +7,20 @@
  * https://github.com/nytris/tappet-cypress/raw/main/MIT-LICENSE.txt
  */
 
+declare module 'dotphp' {
+    function create(contextDirectory: string): {
+        require(filePath: string): ModuleFactory;
+    };
+
+    interface Engine {
+        execute(): {
+            getNative(): (...args: unknown[]) => unknown;
+        };
+    }
+
+    type ModuleFactory = () => Engine;
+}
+
 declare module 'phpruntime/src/plugin/eval' {
     const plugin: unknown;
     export = plugin;

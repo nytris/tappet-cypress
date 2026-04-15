@@ -46,40 +46,94 @@ export const addons: UniterAddon[] = [
                         then(fn: () => unknown): unknown;
                     };
                     Cypress: {
+                        config(name: string): unknown;
                         env(name: string): unknown;
                     };
                     describe(name: string, fn: () => void): void;
                     expect: unknown;
-                    it(name: string, fn: () => unknown): void;
+                    it: {
+                        (name: string, fn: () => unknown): void;
+                        skip(name: string, fn: () => unknown): void;
+                    };
                 };
 
                 const { describe, it, cy, Cypress, fetch } = cypressWindow;
 
-                const apiBaseUrl = Cypress.env('tappetBaseUrl');
+                const apiBaseUrl = Cypress.env('tappetApiBaseUrl');
 
                 if (!apiBaseUrl) {
                     throw new Error(
-                        'Tappet Cypress: Cypress environment variable "tappetBaseUrl" not set',
+                        'Tappet Cypress: Cypress environment variable "tappetApiBaseUrl" not set',
                     );
                 }
+
+                const apiKey = Cypress.env('tappetApiKey');
+
+                if (!apiKey) {
+                    throw new Error(
+                        'Tappet Cypress: Cypress environment variable "tappetApiKey" not set',
+                    );
+                }
+
+                environment.defineCoercingFunction(
+                    'tappet_get_base_url',
+                    () => {
+                        return Cypress.config('baseUrl');
+                    },
+                );
 
                 environment.defineCoercingFunction(
                     'tappet_get_fixture_api',
                     () => {
                         return {
                             loadFixture: async (
-                                fixtureFqcn: string,
+                                fixtureClass: string,
                                 fixturePayload: string,
-                            ) => {
-                                return (
-                                    await fetch(
-                                        apiBaseUrl + '/load/' + fixtureFqcn,
-                                        {
-                                            method: 'POST',
-                                            body: fixturePayload,
+                            ): Promise<string> => {
+                                const response = await fetch(
+                                    apiBaseUrl +
+                                        '/.well-known/tappet/fixture/' +
+                                        fixtureClass.replace(/\\/g, '--'),
+                                    {
+                                        method: 'POST',
+                                        headers: {
+                                            Authorization: `Bearer ${apiKey}`,
+                                            'Content-Type': 'application/json',
                                         },
-                                    )
-                                ).text();
+                                        // JSON-encode the fixture serialisation payload,
+                                        // as it may contain special characters.
+                                        body: JSON.stringify({
+                                            serialisation: fixturePayload,
+                                        }),
+                                    },
+                                );
+
+                                // Response fixture model's serialisation payload will be JSON-encoded
+                                // to support special characters.
+                                return (await response.json()).serialisation;
+                            },
+                            loadMultipleFixtures: async (
+                                fixturesPayload: string,
+                            ): Promise<string> => {
+                                const response = await fetch(
+                                    apiBaseUrl + '/.well-known/tappet/fixtures',
+                                    {
+                                        method: 'POST',
+                                        headers: {
+                                            Authorization: `Bearer ${apiKey}`,
+                                            'Content-Type': 'application/json',
+                                        },
+                                        // JSON-encode the fixture serialisation payload,
+                                        // as it may contain special characters.
+                                        body: JSON.stringify({
+                                            serialisation: fixturesPayload,
+                                        }),
+                                    },
+                                );
+
+                                // Response fixture models' serialisation payload will be JSON-encoded
+                                // to support special characters.
+                                return (await response.json()).serialisation;
                             },
                             purge: async (
                                 modelsToPurge: {
@@ -87,12 +141,16 @@ export const addons: UniterAddon[] = [
                                     model: string;
                                 }[],
                             ) => {
-                                return (
-                                    await fetch(apiBaseUrl + '/purge', {
-                                        method: 'POST',
+                                await fetch(
+                                    apiBaseUrl + '/.well-known/tappet/fixtures',
+                                    {
+                                        method: 'DELETE',
+                                        headers: {
+                                            Authorization: `Bearer ${apiKey}`,
+                                        },
                                         body: JSON.stringify(modelsToPurge),
-                                    })
-                                ).text();
+                                    },
+                                );
                             },
                         };
                     },
@@ -105,10 +163,18 @@ export const addons: UniterAddon[] = [
                     },
                 );
 
+                const filterString = Cypress.env('tappetFilter') as
+                    | string
+                    | null
+                    | undefined;
+                const filterRegex = filterString
+                    ? new RegExp(filterString)
+                    : null;
+
                 environment.defineCoercingFunction(
                     'tappet_get_describe',
                     (modelRepository: unknown) => {
-                        return async (suite: {
+                        return async (module: {
                             getDescription(): Promise<string>;
                             getScenarios(): Promise<
                                 {
@@ -124,7 +190,7 @@ export const addons: UniterAddon[] = [
                                 };
                             }[] = [];
 
-                            for (const scenario of await suite.getScenarios()) {
+                            for (const scenario of await module.getScenarios()) {
                                 scenarios.push({
                                     description:
                                         await scenario.getDescription(),
@@ -132,7 +198,13 @@ export const addons: UniterAddon[] = [
                                 });
                             }
 
-                            describe(await suite.getDescription(), () => {
+                            const moduleDescription =
+                                await module.getDescription();
+                            const moduleMatchesFilter =
+                                filterRegex === null ||
+                                filterRegex.test(moduleDescription);
+
+                            describe(moduleDescription, () => {
                                 beforeEach(() => {
                                     // TODO: scenario.beforeEach()?
                                     // Perform cleanup inside Mocha beforeEach so that it happens regardless of errors.
@@ -149,14 +221,50 @@ export const addons: UniterAddon[] = [
                                     description,
                                     scenario,
                                 } of scenarios) {
-                                    it(description, () => {
-                                        return cy.then(() =>
-                                            scenario.perform(),
-                                        );
-                                    });
+                                    const scenarioMatchesFilter =
+                                        moduleMatchesFilter ||
+                                        filterRegex.test(description);
+
+                                    (scenarioMatchesFilter ? it : it.skip)(
+                                        description,
+                                        () => {
+                                            return cy.then(() =>
+                                                scenario.perform(),
+                                            );
+                                        },
+                                    );
                                 }
                             });
                         };
+                    },
+                );
+
+                const cypressProjectRoot = Cypress.config(
+                    'projectRoot',
+                ) as string;
+                const repoRoot = Cypress.config('repoRoot') as string;
+
+                const projectRoot = cypressProjectRoot.startsWith(repoRoot)
+                    ? cypressProjectRoot.substring(repoRoot.length + 1)
+                    : cypressProjectRoot;
+
+                environment.defineCoercingFunction(
+                    'tappet_get_cypress_project_root',
+                    () => projectRoot,
+                );
+
+                const suiteName = Cypress.env('tappetSuite');
+
+                if (!suiteName) {
+                    throw new Error(
+                        'Tappet Cypress: Cypress environment variable "tappetSuite" not set',
+                    );
+                }
+
+                environment.defineCoercingFunction(
+                    'tappet_get_suite_name',
+                    () => {
+                        return suiteName;
                     },
                 );
             },

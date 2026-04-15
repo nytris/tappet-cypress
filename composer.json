@@ -17,6 +17,7 @@
         "tappet/tappet": "dev-main"
     },
     "require-dev": {
+        "ext-posix": "*",
         "mockery/mockery": "1.6.11",
         "phpstan/phpstan": "^1.10",
         "phpstan/phpstan-mockery": "^1.1",

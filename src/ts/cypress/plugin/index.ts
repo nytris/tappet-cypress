@@ -6,9 +6,7 @@
  * Released under the MIT license.
  * https://github.com/nytris/tappet-cypress/raw/main/MIT-LICENSE.txt
  */
-
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-import UniterPlugin = require('webpack-uniter-plugin');
+import UniterPlugin from 'webpack-uniter-plugin';
 
 /**
  * Type of the preprocessor factory function from @cypress/webpack-preprocessor.

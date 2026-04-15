@@ -10,10 +10,15 @@ import * as uniterPlugin from './plugin/';
 import path from 'path';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
+import dotPhpFactoryImport = require('dotphp');
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 import phpEvalPlugin = require('phpruntime/src/plugin/eval');
 
 export interface DefineConfigOptions {
+    bootstraps?: string[];
     include?: string[];
+    stub?: Record<string, null>;
+    stubComposerAutoloadFiles?: boolean;
 }
 
 export interface PhpifySettings {
@@ -48,10 +53,45 @@ export interface UniterConfig {
  * Creates the Uniter configuration for Tappet Cypress.
  */
 export function defineConfig(
+    configDir: string,
     relativeRootDir: string,
-    { include = [] }: DefineConfigOptions = {},
+    {
+        bootstraps = [],
+        include = [],
+        stub = {},
+        stubComposerAutoloadFiles = true,
+    }: DefineConfigOptions = {},
+    dotPhpFactory: typeof dotPhpFactoryImport = dotPhpFactoryImport,
 ): UniterConfig {
     const bootstrapsDir = path.join(__dirname, 'bootstraps');
+
+    if (stubComposerAutoloadFiles) {
+        // Composer autoload files will cause fatal errors if missing from the bundle,
+        // as Composer require()'s them - so we must either include them (and any other modules they require)
+        // or stub them out for the browser build.
+
+        const dotPhp = dotPhpFactory.create(
+            path.join(__dirname, 'env/composer/'),
+        );
+
+        const autoloadFilesGetterModule = dotPhp.require(
+            path.resolve(__dirname, 'env/composer/get_autoload_files.php'),
+        );
+
+        const projectRoot = path.resolve(configDir, relativeRootDir);
+
+        const files = autoloadFilesGetterModule().execute().getNative()(
+            projectRoot,
+        ) as string[];
+
+        for (const file of files) {
+            // Paths must be relative to the project root.
+            const relativeFile = path.relative(projectRoot, file);
+
+            include.push(relativeFile);
+            stub[relativeFile] = null;
+        }
+    }
 
     return {
         plugins: [
@@ -72,18 +112,21 @@ export function defineConfig(
                     // Pull in Composer's autoloader.
                     'vendor/autoload.php',
                     path.join(bootstrapsDir, 'bootstrap.php'),
+
+                    ...bootstraps,
                 ],
                 include: [
-                    'tests/tappet/app/**/*.php',
-                    'vendor/autoload.php',
                     'vendor/composer/**/*.php',
                     '!vendor/composer/pcre/**',
-                    'vendor/nytris/tappet/**/*.php',
-                    'vendor/nytris/tappet-cypress/**/*.php',
+                    'vendor/tappet/tappet/src/{Core,Suite}/**/*.php',
+                    'vendor/tappet/cypress/src/php/**/*.php',
 
                     ...include,
                 ],
                 rootDir: relativeRootDir,
+                stub: {
+                    ...stub,
+                },
             },
             phptojs: {
                 lineNumbers: true,

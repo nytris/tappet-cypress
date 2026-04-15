@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "6a257fadf05d0b69453525e4ecdd01b3",
+    "content-hash": "969aa1b404d6eaafd87b840c83e636c6",
     "packages": [
         {
             "name": "tappet/tappet",
@@ -12,15 +12,16 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/nytris/tappet.git",
-                "reference": "2fd0743a97cc8617bb355f854e3b4078319fea67"
+                "reference": "281462eee3754d08809d5540f9e7d448fdaf683a"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/nytris/tappet/zipball/2fd0743a97cc8617bb355f854e3b4078319fea67",
-                "reference": "2fd0743a97cc8617bb355f854e3b4078319fea67",
+                "url": "https://api.github.com/repos/nytris/tappet/zipball/281462eee3754d08809d5540f9e7d448fdaf683a",
+                "reference": "281462eee3754d08809d5540f9e7d448fdaf683a",
                 "shasum": ""
             },
             "require": {
+                "composer-runtime-api": "^2.0",
                 "php": ">=8.1"
             },
             "require-dev": {
@@ -30,6 +31,9 @@
                 "phpunit/phpunit": "^10.2"
             },
             "default-branch": true,
+            "bin": [
+                "bin/tappet"
+            ],
             "type": "library",
             "autoload": {
                 "psr-4": {
@@ -44,7 +48,7 @@
                 "issues": "https://github.com/nytris/tappet/issues",
                 "source": "https://github.com/nytris/tappet/tree/main"
             },
-            "time": "2026-03-05T18:22:12+00:00"
+            "time": "2026-04-15T23:35:55+00:00"
         }
     ],
     "packages-dev": [
@@ -1965,7 +1969,9 @@
     "platform": {
         "php": ">=8.1"
     },
-    "platform-dev": {},
+    "platform-dev": {
+        "ext-posix": "*"
+    },
     "platform-overrides": {
         "php": "8.1"
     },

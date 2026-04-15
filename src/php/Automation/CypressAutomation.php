@@ -13,30 +13,206 @@ declare(strict_types=1);
 
 namespace Tappet\Cypress\Automation;
 
+use Tappet\Core\Action\FieldActionInterface;
+use Tappet\Core\Action\InteractionInterface;
+use Tappet\Core\Assertion\RegionAssertionInterface;
+use Tappet\Core\Assertion\StateAssertionInterface;
 use Tappet\Core\Automation\AutomationInterface;
+use Tappet\Core\Automation\Field\FieldActionRegistryInterface;
+use Tappet\Core\Automation\Interaction\InteractionRegistryInterface;
+use Tappet\Core\Automation\Region\RegionAssertionRegistryInterface;
+use Tappet\Core\Automation\State\StateAssertionRegistryInterface;
+use Tappet\Core\Environment\EnvironmentInterface;
+use Tappet\Core\Exception\UnresolvableTypeException;
 
+/**
+ * Class CypressAutomation.
+ *
+ * Represents the automation layer of a test scenario, where we integrate with Cypress.
+ *
+ * @author Dan Phillimore <dan@ovms.co>
+ */
 class CypressAutomation implements AutomationInterface
 {
     /**
      * @var mixed
      */
     private $cy;
+    /**
+     * @var FieldActionRegistryInterface
+     */
+    private $fieldActionRegistry;
+    /**
+     * @var InteractionRegistryInterface
+     */
+    private $interactionRegistry;
+    /**
+     * @var RegionAssertionRegistryInterface
+     */
+    private $regionAssertionRegistry;
+    /**
+     * @var StateAssertionRegistryInterface
+     */
+    private $stateAssertionRegistry;
 
-    public function __construct(mixed $cy)
-    {
+    public function __construct(
+        FieldActionRegistryInterface $fieldActionRegistry,
+        InteractionRegistryInterface $interactionRegistry,
+        RegionAssertionRegistryInterface $regionAssertionRegistry,
+        StateAssertionRegistryInterface $stateAssertionRegistry,
+        mixed $cy
+    ) {
         $this->cy = $cy;
+        $this->fieldActionRegistry = $fieldActionRegistry;
+        $this->interactionRegistry = $interactionRegistry;
+        $this->regionAssertionRegistry = $regionAssertionRegistry;
+        $this->stateAssertionRegistry = $stateAssertionRegistry;
     }
 
-    public function assertPage(string $url): void
+    /**
+     * @inheritDoc
+     */
+    public function assertPage(string $url, EnvironmentInterface $environment): void
     {
+        if ($url[0] === '/') {
+            $url = $environment->getBaseUrl() . $url;
+        }
+
         $this->cy->url()->should('eq', $url);
     }
 
-    public function typeField(string $fieldHandle, string $text): void
+    /**
+     * Fetches the underlying Cypress `cy` object.
+     */
+    public function getCy(): mixed
     {
-        $this->cy->get('[data-tappet-field="' . $fieldHandle . '"]')->type($text);
+        return $this->cy;
     }
 
+    /**
+     * @inheritDoc
+     */
+    public function performFieldAction(FieldActionInterface $action): void
+    {
+        $automation = $this;
+        $fieldHandle = $action->getFieldHandle();
+        $fieldActionRegistry = $this->fieldActionRegistry;
+
+        $this->cy->get('[data-tappet-field="' . $fieldHandle . '"]')
+            ->then(function ($field) use ($action, $automation, $fieldActionRegistry, $fieldHandle) {
+                $fieldType = $field->attr('data-tappet-field-type');
+
+                if (!$fieldType) {
+                    switch ($field->prop('tagName')) {
+                        case 'INPUT':
+                            $fieldType = strtolower($field->attr('type'));
+
+                            if ($fieldType === 'password') {
+                                $fieldType = 'text';
+                            }
+
+                            break;
+                        case 'SELECT':
+                            $fieldType = 'select';
+                            break;
+                        case 'TEXTAREA':
+                            $fieldType = 'text';
+                            break;
+                        default:
+                            throw new UnresolvableTypeException(
+                                'No field type could be resolved for field with handle "' . $fieldHandle . '"'
+                            );
+                    }
+                }
+
+                $fieldActionRegistry->handleFieldAction($fieldType, $action, $automation);
+            });
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function performInteraction(InteractionInterface $interaction): void
+    {
+        $automation = $this;
+        $interactionHandle = $interaction->getInteractionHandle();
+        $interactionRegistry = $this->interactionRegistry;
+
+        $this->cy->get('[data-tappet-interaction="' . $interactionHandle . '"]')
+            ->then(function ($element) use ($automation, $interaction, $interactionRegistry, $interactionHandle) {
+                $interactionType = $element->attr('data-tappet-interaction-type');
+
+                if (!$interactionType) {
+                    switch ($element->prop('tagName')) {
+                        case 'A':
+                            if ($element->attr('href') !== null) {
+                                $interactionType = 'hyperlink';
+                            } else {
+                                throw new UnresolvableTypeException(
+                                    'No interaction type could be resolved for interaction with handle "' . $interactionHandle . '"'
+                                );
+                            }
+                            break;
+                        case 'BUTTON':
+                            $interactionType = 'button';
+                            break;
+                        case 'INPUT':
+                            if (strtolower($element->attr('type')) === 'button') {
+                                $interactionType = 'button';
+                            } else {
+                                throw new UnresolvableTypeException(
+                                    'No interaction type could be resolved for interaction with handle "' . $interactionHandle . '"'
+                                );
+                            }
+                            break;
+                        default:
+                            throw new UnresolvableTypeException(
+                                'No interaction type could be resolved for interaction with handle "' . $interactionHandle . '"'
+                            );
+                    }
+                }
+
+                $interactionRegistry->handleInteraction($interactionType, $interaction, $automation);
+            });
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function performRegionAssertion(RegionAssertionInterface $assertion): void
+    {
+        $automation = $this;
+        $regionHandle = $assertion->getRegionHandle();
+        $regionAssertionRegistry = $this->regionAssertionRegistry;
+
+        $this->cy->get('[data-tappet-region="' . $regionHandle . '"]')
+            ->then(function ($element) use ($assertion, $automation, $regionAssertionRegistry) {
+                $regionType = $element->attr('data-tappet-region-type') ?: 'text';
+
+                $regionAssertionRegistry->handleRegionAssertion($regionType, $assertion, $automation);
+            });
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function performStateAssertion(StateAssertionInterface $assertion): void
+    {
+        $automation = $this;
+        $stateHandle = $assertion->getStateHandle();
+        $stateAssertionRegistry = $this->stateAssertionRegistry;
+
+        $this->cy->get('[data-tappet-state="' . $stateHandle . '"]')
+            ->then(function ($element) use ($assertion, $automation, $stateAssertionRegistry) {
+                $stateType = $element->attr('data-tappet-state-type') ?: 'exists';
+
+                $stateAssertionRegistry->handleStateAssertion($stateType, $assertion, $automation);
+            });
+    }
+
+    /**
+     * @inheritDoc
+     */
     public function visitPage(string $url): void
     {
         $this->cy->visit($url);

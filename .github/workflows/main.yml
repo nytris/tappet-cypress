@@ -22,6 +22,18 @@ jobs:
       - name: Install Composer dependencies
         run: composer install
 
+      - name: Use Node.js 24.x
+        uses: actions/setup-node@v3
+        with:
+          node-version: 24.x
+          cache: 'npm'
+
+      - name: Install NPM dependencies
+        run: npm ci
+
+      - name: Build JS
+        run: npm run build
+
       - name: Run tests
         run: vendor/bin/phpunit
 

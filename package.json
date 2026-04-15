@@ -23,13 +23,13 @@
   "main": "uniter/defineConfig.js",
   "types": "uniter/defineConfig.d.ts",
   "exports": {
-    ".": {
-      "require": "./uniter/defineConfig.js",
-      "types": "./uniter/defineConfig.d.ts"
-    },
     "./cypress/plugin": {
       "require": "./cypress/plugin/index.js",
       "types": "./cypress/plugin/index.d.ts"
+    },
+    "./uniter/defineConfig": {
+      "require": "./uniter/defineConfig.js",
+      "types": "./uniter/defineConfig.d.ts"
     },
     "./uniter/plugin": {
       "require": "./uniter/plugin/index.js",
@@ -53,6 +53,7 @@
     "test": "npm run lint:eslint:check && npm run lint:tsc:check && npm run mocha"
   },
   "dependencies": {
+    "dotphp": "^3.9.0",
     "webpack-uniter-plugin": "^0.0.1"
   },
   "peerDependencies": {
@@ -71,6 +72,7 @@
     "buildbelt": "^0.3.0",
     "chai": "^4.3.10",
     "chai-as-promised": "^7.1.1",
+    "cypress": "^14",
     "eslint": "^9.25.0",
     "eslint-config-prettier": "^10.1.2",
     "eslint-plugin-prettier": "^5.2.6",
