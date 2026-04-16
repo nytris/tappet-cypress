@@ -47,8 +47,9 @@ class TextFieldActionHandler implements FieldActionHandlerInterface
      */
     public function typeField(Type $action, CypressAutomation $automation): void
     {
+        $attributePrefix = $automation->getAttributePrefix();
         $cy = $automation->getCy();
 
-        $cy->get('[data-tappet-field="' . $action->getFieldHandle() . '"]')->clear()->type($action->getText());
+        $cy->get('[data-' . $attributePrefix . '-field="' . $action->getFieldHandle() . '"]')->clear()->type($action->getText());
     }
 }

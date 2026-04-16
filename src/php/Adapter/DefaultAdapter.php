@@ -34,6 +34,10 @@ use Tappet\Cypress\Automation\CypressAutomation;
 class DefaultAdapter implements AdapterInterface
 {
     /**
+     * @var string
+     */
+    private $attributePrefix;
+    /**
      * @var FieldActionRegistryInterface
      */
     private $fieldActionRegistry;
@@ -54,8 +58,10 @@ class DefaultAdapter implements AdapterInterface
         FieldActionRegistryInterface $fieldActionRegistry = new FieldActionRegistry(),
         InteractionRegistryInterface $interactionRegistry = new InteractionRegistry(),
         RegionAssertionRegistryInterface $regionAssertionRegistry = new RegionAssertionRegistry(),
-        StateAssertionRegistryInterface $stateAssertionRegistry = new StateAssertionRegistry()
+        StateAssertionRegistryInterface $stateAssertionRegistry = new StateAssertionRegistry(),
+        string $attributePrefix = 'ui'
     ) {
+        $this->attributePrefix = $attributePrefix;
         $this->fieldActionRegistry = $fieldActionRegistry;
         $this->interactionRegistry = $interactionRegistry;
         $this->regionAssertionRegistry = $regionAssertionRegistry;
@@ -72,7 +78,8 @@ class DefaultAdapter implements AdapterInterface
             $this->interactionRegistry,
             $this->regionAssertionRegistry,
             $this->stateAssertionRegistry,
-            $cy
+            $cy,
+            $this->attributePrefix
         );
     }
 

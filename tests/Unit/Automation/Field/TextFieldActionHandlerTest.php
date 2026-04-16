@@ -36,8 +36,10 @@ class TextFieldActionHandlerTest extends AbstractTestCase
         parent::setUp();
 
         $this->cy = mock();
-        $this->automation = mock(CypressAutomation::class);
-        $this->automation->allows('getCy')->andReturn($this->cy);
+        $this->automation = mock(CypressAutomation::class, [
+            'getAttributePrefix' => 'ui',
+            'getCy' => $this->cy,
+        ]);
 
         $this->handler = new TextFieldActionHandler();
     }
@@ -53,8 +55,8 @@ class TextFieldActionHandlerTest extends AbstractTestCase
     public function testTypeFieldTypesIntoFieldViaCyApi(): void
     {
         $action = new Type('username', 'hello world');
-
         $getChain = mock();
+
         $getChain->expects()
             ->clear()
             ->once()
@@ -64,10 +66,35 @@ class TextFieldActionHandlerTest extends AbstractTestCase
             ->once()
             ->andReturn($getChain);
         $this->cy->expects()
-            ->get('[data-tappet-field="username"]')
+            ->get('[data-ui-field="username"]')
             ->once()
             ->andReturn($getChain);
 
         $this->handler->getHandlers()[Type::class]($action, $this->automation);
+    }
+
+    public function testTypeFieldUsesConfiguredAttributePrefix(): void
+    {
+        $action = new Type('username', 'hello world');
+        $automation = mock(CypressAutomation::class, [
+            'getCy' => $this->cy,
+            'getAttributePrefix' => 'my-app',
+        ]);
+        $getChain = mock();
+
+        $getChain->expects()
+            ->clear()
+            ->once()
+            ->andReturn($getChain);
+        $getChain->expects()
+            ->type('hello world')
+            ->once()
+            ->andReturn($getChain);
+        $this->cy->expects()
+            ->get('[data-my-app-field="username"]')
+            ->once()
+            ->andReturn($getChain);
+
+        $this->handler->getHandlers()[Type::class]($action, $automation);
     }
 }

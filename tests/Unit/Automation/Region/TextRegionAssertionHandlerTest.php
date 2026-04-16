@@ -37,8 +37,10 @@ class TextRegionAssertionHandlerTest extends AbstractTestCase
         parent::setUp();
 
         $this->cy = mock();
-        $this->automation = mock(CypressAutomation::class);
-        $this->automation->allows('getCy')->andReturn($this->cy);
+        $this->automation = mock(CypressAutomation::class, [
+            'getCy' => $this->cy,
+            'getAttributePrefix' => 'ui',
+        ]);
 
         $this->handler = new TextRegionAssertionHandler();
     }
@@ -62,13 +64,13 @@ class TextRegionAssertionHandlerTest extends AbstractTestCase
     public function testAssertRegionContainsAssertsCorrectTextViaCyApi(): void
     {
         $assertion = new ExpectRegionContains('flash-message', 'Saved successfully.');
-
         $getChain = mock();
+
         $getChain->expects()
             ->should('contain', 'Saved successfully.')
             ->once();
         $this->cy->expects()
-            ->get('[data-tappet-region="flash-message"]')
+            ->get('[data-ui-region="flash-message"]')
             ->once()
             ->andReturn($getChain);
 
@@ -78,16 +80,36 @@ class TextRegionAssertionHandlerTest extends AbstractTestCase
     public function testAssertRegionDoesNotContainNegativelyAssertsCorrectTextViaCyApi(): void
     {
         $assertion = new ExpectRegionDoesNotContain('flash-message', 'Something went wrong.');
-
         $getChain = mock();
+
         $getChain->expects()
             ->should('not.contain', 'Something went wrong.')
             ->once();
         $this->cy->expects()
-            ->get('[data-tappet-region="flash-message"]')
+            ->get('[data-ui-region="flash-message"]')
             ->once()
             ->andReturn($getChain);
 
         $this->handler->getHandlers()[ExpectRegionDoesNotContain::class]($assertion, $this->automation);
+    }
+
+    public function testAssertRegionContainsUsesConfiguredAttributePrefix(): void
+    {
+        $assertion = new ExpectRegionContains('flash-message', 'Saved successfully.');
+        $automation = mock(CypressAutomation::class, [
+            'getCy' => $this->cy,
+            'getAttributePrefix' => 'my-app',
+        ]);
+        $getChain = mock();
+
+        $getChain->expects()
+            ->should('contain', 'Saved successfully.')
+            ->once();
+        $this->cy->expects()
+            ->get('[data-my-app-region="flash-message"]')
+            ->once()
+            ->andReturn($getChain);
+
+        $this->handler->getHandlers()[ExpectRegionContains::class]($assertion, $automation);
     }
 }

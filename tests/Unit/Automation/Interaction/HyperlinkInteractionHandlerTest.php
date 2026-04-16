@@ -36,8 +36,10 @@ class HyperlinkInteractionHandlerTest extends AbstractTestCase
         parent::setUp();
 
         $this->cy = mock();
-        $this->automation = mock(CypressAutomation::class);
-        $this->automation->allows('getCy')->andReturn($this->cy);
+        $this->automation = mock(CypressAutomation::class, [
+            'getCy' => $this->cy,
+            'getAttributePrefix' => 'ui',
+        ]);
 
         $this->handler = new HyperlinkInteractionHandler();
     }
@@ -53,16 +55,36 @@ class HyperlinkInteractionHandlerTest extends AbstractTestCase
     public function testEnactHandlerClicksHyperlinkViaCyApi(): void
     {
         $interaction = new Enact('my-link');
-
         $getChain = mock();
+
         $getChain->expects()
             ->click()
             ->once();
         $this->cy->expects()
-            ->get('[data-tappet-interaction="my-link"]')
+            ->get('[data-ui-interaction="my-link"]')
             ->once()
             ->andReturn($getChain);
 
         $this->handler->getHandlers()[Enact::class]($interaction, $this->automation);
+    }
+
+    public function testEnactHandlerUsesConfiguredAttributePrefix(): void
+    {
+        $interaction = new Enact('my-link');
+        $automation = mock(CypressAutomation::class, [
+            'getCy' => $this->cy,
+            'getAttributePrefix' => 'my-app',
+        ]);
+        $getChain = mock();
+
+        $getChain->expects()
+            ->click()
+            ->once();
+        $this->cy->expects()
+            ->get('[data-my-app-interaction="my-link"]')
+            ->once()
+            ->andReturn($getChain);
+
+        $this->handler->getHandlers()[Enact::class]($interaction, $automation);
     }
 }

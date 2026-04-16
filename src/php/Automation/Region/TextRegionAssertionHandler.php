@@ -53,9 +53,10 @@ class TextRegionAssertionHandler implements RegionAssertionHandlerInterface
      */
     public function assertRegionContains(ExpectRegionContains $assertion, CypressAutomation $automation): void
     {
+        $attributePrefix = $automation->getAttributePrefix();
         $cy = $automation->getCy();
 
-        $cy->get('[data-tappet-region="' . $assertion->getRegionHandle() . '"]')->should('contain', $assertion->getText());
+        $cy->get('[data-' . $attributePrefix . '-region="' . $assertion->getRegionHandle() . '"]')->should('contain', $assertion->getText());
     }
 
     /**
@@ -63,8 +64,9 @@ class TextRegionAssertionHandler implements RegionAssertionHandlerInterface
      */
     public function assertRegionDoesNotContain(ExpectRegionDoesNotContain $assertion, CypressAutomation $automation): void
     {
+        $attributePrefix = $automation->getAttributePrefix();
         $cy = $automation->getCy();
 
-        $cy->get('[data-tappet-region="' . $assertion->getRegionHandle() . '"]')->should('not.contain', $assertion->getText());
+        $cy->get('[data-' . $attributePrefix . '-region="' . $assertion->getRegionHandle() . '"]')->should('not.contain', $assertion->getText());
     }
 }

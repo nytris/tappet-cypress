@@ -36,8 +36,10 @@ class ExistsStateAssertionHandlerTest extends AbstractTestCase
         parent::setUp();
 
         $this->cy = mock();
-        $this->automation = mock(CypressAutomation::class);
-        $this->automation->allows('getCy')->andReturn($this->cy);
+        $this->automation = mock(CypressAutomation::class, [
+            'getCy' => $this->cy,
+            'getAttributePrefix' => 'ui',
+        ]);
 
         $this->handler = new ExistsStateAssertionHandler();
     }
@@ -53,16 +55,36 @@ class ExistsStateAssertionHandlerTest extends AbstractTestCase
     public function testAssertStateExistsAssertsExistenceOfSelectorViaCyApi(): void
     {
         $assertion = new ExpectState('import-pending');
-
         $getChain = mock();
+
         $getChain->expects()
             ->should('exist')
             ->once();
         $this->cy->expects()
-            ->get('[data-tappet-state="import-pending"]')
+            ->get('[data-ui-state="import-pending"]')
             ->once()
             ->andReturn($getChain);
 
         $this->handler->getHandlers()[ExpectState::class]($assertion, $this->automation);
+    }
+
+    public function testAssertStateExistsUsesConfiguredAttributePrefix(): void
+    {
+        $assertion = new ExpectState('import-pending');
+        $automation = mock(CypressAutomation::class, [
+            'getCy' => $this->cy,
+            'getAttributePrefix' => 'my-app',
+        ]);
+        $getChain = mock();
+
+        $getChain->expects()
+            ->should('exist')
+            ->once();
+        $this->cy->expects()
+            ->get('[data-my-app-state="import-pending"]')
+            ->once()
+            ->andReturn($getChain);
+
+        $this->handler->getHandlers()[ExpectState::class]($assertion, $automation);
     }
 }

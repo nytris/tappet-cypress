@@ -59,7 +59,8 @@ class CypressAutomationTest extends AbstractTestCase
             $this->interactionRegistry,
             $this->regionAssertionRegistry,
             $this->stateAssertionRegistry,
-            $this->cy
+            $this->cy,
+            'ui'
         );
     }
 
@@ -96,6 +97,25 @@ class CypressAutomationTest extends AbstractTestCase
         $this->automation->assertPage('/dashboard', $environment);
     }
 
+    public function testGetAttributePrefixReturnsDefaultPrefix(): void
+    {
+        static::assertSame('ui', $this->automation->getAttributePrefix());
+    }
+
+    public function testGetAttributePrefixReturnsCustomPrefix(): void
+    {
+        $automation = new CypressAutomation(
+            $this->fieldActionRegistry,
+            $this->interactionRegistry,
+            $this->regionAssertionRegistry,
+            $this->stateAssertionRegistry,
+            $this->cy,
+            'my-app'
+        );
+
+        static::assertSame('my-app', $automation->getAttributePrefix());
+    }
+
     public function testGetCyReturnsTheInnerCypressApiObject(): void
     {
         static::assertSame($this->cy, $this->automation->getCy());
@@ -109,7 +129,7 @@ class CypressAutomationTest extends AbstractTestCase
         $getChain->allows('then');
 
         $this->cy->expects()
-            ->get('[data-tappet-field="username"]')
+            ->get('[data-ui-field="username"]')
             ->once()
             ->andReturn($getChain);
 
@@ -122,7 +142,7 @@ class CypressAutomationTest extends AbstractTestCase
         $action->allows('getFieldHandle')->andReturn('username');
         $getChain = mock();
         $field = mock();
-        $field->allows('attr')->with('data-tappet-field-type')->andReturn('text');
+        $field->allows('attr')->with('data-ui-field-type')->andReturn('text');
 
         $getChain->expects()
             ->then(Mockery::on(function (callable $callback) use ($field): bool {
@@ -144,7 +164,7 @@ class CypressAutomationTest extends AbstractTestCase
         $action = mock(FieldActionInterface::class);
         $action->allows('getFieldHandle')->andReturn('username');
         $field = mock();
-        $field->allows('attr')->with('data-tappet-field-type')->andReturn(null);
+        $field->allows('attr')->with('data-ui-field-type')->andReturn(null);
         $field->allows('prop')->with('tagName')->andReturn('INPUT');
         $field->allows('attr')->with('type')->andReturn('Text');
         $getChain = mock();
@@ -164,6 +184,29 @@ class CypressAutomationTest extends AbstractTestCase
         $this->automation->performFieldAction($action);
     }
 
+    public function testPerformFieldActionUsesConfiguredAttributePrefix(): void
+    {
+        $automation = new CypressAutomation(
+            $this->fieldActionRegistry,
+            $this->interactionRegistry,
+            $this->regionAssertionRegistry,
+            $this->stateAssertionRegistry,
+            $this->cy,
+            'my-app'
+        );
+        $action = mock(FieldActionInterface::class);
+        $action->allows('getFieldHandle')->andReturn('username');
+        $getChain = mock();
+        $getChain->allows('then');
+
+        $this->cy->expects()
+            ->get('[data-my-app-field="username"]')
+            ->once()
+            ->andReturn($getChain);
+
+        $automation->performFieldAction($action);
+    }
+
     public function testPerformInteractionCallsCyGetWithInteractionHandleSelector(): void
     {
         $interaction = new Enact('submit-button');
@@ -171,7 +214,7 @@ class CypressAutomationTest extends AbstractTestCase
         $getChain->allows('then');
 
         $this->cy->expects()
-            ->get('[data-tappet-interaction="submit-button"]')
+            ->get('[data-ui-interaction="submit-button"]')
             ->once()
             ->andReturn($getChain);
 
@@ -183,7 +226,7 @@ class CypressAutomationTest extends AbstractTestCase
         $interaction = new Enact('submit-button');
 
         $element = mock();
-        $element->allows('attr')->with('data-tappet-interaction-type')->andReturn('click');
+        $element->allows('attr')->with('data-ui-interaction-type')->andReturn('click');
         $getChain = mock();
 
         $getChain->expects()
@@ -205,7 +248,7 @@ class CypressAutomationTest extends AbstractTestCase
     {
         $interaction = new Enact('submit-button');
         $element = mock();
-        $element->allows('attr')->with('data-tappet-interaction-type')->andReturn(null);
+        $element->allows('attr')->with('data-ui-interaction-type')->andReturn(null);
         $element->allows('prop')->with('tagName')->andReturn('BUTTON');
         $getChain = mock();
 
@@ -229,11 +272,11 @@ class CypressAutomationTest extends AbstractTestCase
         $interaction = new Enact('my-link');
         $element = mock();
         $element->allows('attr')->with('href')->andReturn('/my/url');
-        $element->allows('attr')->with('data-tappet-interaction-type')->andReturn(null);
+        $element->allows('attr')->with('data-ui-interaction-type')->andReturn(null);
         $element->allows('prop')->with('tagName')->andReturn('A');
         $getChain = mock();
         $this->cy->allows()
-            ->get('[data-tappet-interaction="my-link"]')
+            ->get('[data-ui-interaction="my-link"]')
             ->andReturn($getChain);
         $getChain->allows()
             ->then(Mockery::on(function (callable $callback) use ($element): bool {
@@ -253,11 +296,11 @@ class CypressAutomationTest extends AbstractTestCase
         $interaction = new Enact('my-link');
         $element = mock();
         $element->allows('attr')->with('href')->andReturn(null);
-        $element->allows('attr')->with('data-tappet-interaction-type')->andReturn(null);
+        $element->allows('attr')->with('data-ui-interaction-type')->andReturn(null);
         $element->allows('prop')->with('tagName')->andReturn('A');
         $getChain = mock();
         $this->cy->allows()
-            ->get('[data-tappet-interaction="my-link"]')
+            ->get('[data-ui-interaction="my-link"]')
             ->andReturn($getChain);
         $getChain->allows()
             ->then(Mockery::on(function (callable $callback) use ($element): bool {
@@ -275,7 +318,7 @@ class CypressAutomationTest extends AbstractTestCase
     {
         $interaction = new Enact('submit-input');
         $element = mock();
-        $element->allows('attr')->with('data-tappet-interaction-type')->andReturn(null);
+        $element->allows('attr')->with('data-ui-interaction-type')->andReturn(null);
         $element->allows('prop')->with('tagName')->andReturn('INPUT');
         $element->allows('attr')->with('type')->andReturn('button');
         $getChain = mock();
@@ -295,6 +338,28 @@ class CypressAutomationTest extends AbstractTestCase
         $this->automation->performInteraction($interaction);
     }
 
+    public function testPerformInteractionUsesConfiguredAttributePrefix(): void
+    {
+        $automation = new CypressAutomation(
+            $this->fieldActionRegistry,
+            $this->interactionRegistry,
+            $this->regionAssertionRegistry,
+            $this->stateAssertionRegistry,
+            $this->cy,
+            'my-app'
+        );
+        $interaction = new Enact('submit-button');
+        $getChain = mock();
+        $getChain->allows('then');
+
+        $this->cy->expects()
+            ->get('[data-my-app-interaction="submit-button"]')
+            ->once()
+            ->andReturn($getChain);
+
+        $automation->performInteraction($interaction);
+    }
+
     public function testPerformRegionAssertionCallsCyGetWithRegionHandleSelector(): void
     {
         $assertion = new ExpectRegionContains('flash-message', 'Saved.');
@@ -302,7 +367,7 @@ class CypressAutomationTest extends AbstractTestCase
         $getChain->allows('then');
 
         $this->cy->expects()
-            ->get('[data-tappet-region="flash-message"]')
+            ->get('[data-ui-region="flash-message"]')
             ->once()
             ->andReturn($getChain);
 
@@ -313,7 +378,7 @@ class CypressAutomationTest extends AbstractTestCase
     {
         $assertion = new ExpectRegionContains('flash-message', 'Saved.');
         $element = mock();
-        $element->allows('attr')->with('data-tappet-region-type')->andReturn('text');
+        $element->allows('attr')->with('data-ui-region-type')->andReturn('text');
         $getChain = mock();
 
         $getChain->expects()
@@ -335,7 +400,7 @@ class CypressAutomationTest extends AbstractTestCase
     {
         $assertion = new ExpectRegionDoesNotContain('flash-message', 'Error.');
         $element = mock();
-        $element->allows('attr')->with('data-tappet-region-type')->andReturn(null);
+        $element->allows('attr')->with('data-ui-region-type')->andReturn(null);
         $getChain = mock();
 
         $getChain->expects()
@@ -353,6 +418,28 @@ class CypressAutomationTest extends AbstractTestCase
         $this->automation->performRegionAssertion($assertion);
     }
 
+    public function testPerformRegionAssertionUsesConfiguredAttributePrefix(): void
+    {
+        $automation = new CypressAutomation(
+            $this->fieldActionRegistry,
+            $this->interactionRegistry,
+            $this->regionAssertionRegistry,
+            $this->stateAssertionRegistry,
+            $this->cy,
+            'my-app'
+        );
+        $assertion = new ExpectRegionContains('flash-message', 'Saved.');
+        $getChain = mock();
+        $getChain->allows('then');
+
+        $this->cy->expects()
+            ->get('[data-my-app-region="flash-message"]')
+            ->once()
+            ->andReturn($getChain);
+
+        $automation->performRegionAssertion($assertion);
+    }
+
     public function testPerformStateAssertionCallsCyGetWithStateHandleSelector(): void
     {
         $assertion = new ExpectState('loading-spinner');
@@ -360,7 +447,7 @@ class CypressAutomationTest extends AbstractTestCase
         $getChain->allows('then');
 
         $this->cy->expects()
-            ->get('[data-tappet-state="loading-spinner"]')
+            ->get('[data-ui-state="loading-spinner"]')
             ->once()
             ->andReturn($getChain);
 
@@ -371,7 +458,7 @@ class CypressAutomationTest extends AbstractTestCase
     {
         $assertion = new ExpectState('loading-spinner');
         $element = mock();
-        $element->allows('attr')->with('data-tappet-state-type')->andReturn('exists');
+        $element->allows('attr')->with('data-ui-state-type')->andReturn('exists');
         $getChain = mock();
 
         $getChain->expects()
@@ -393,7 +480,7 @@ class CypressAutomationTest extends AbstractTestCase
     {
         $assertion = new ExpectState('loading-spinner');
         $element = mock();
-        $element->allows('attr')->with('data-tappet-state-type')->andReturn(null);
+        $element->allows('attr')->with('data-ui-state-type')->andReturn(null);
         $getChain = mock();
 
         $getChain->expects()
@@ -409,6 +496,28 @@ class CypressAutomationTest extends AbstractTestCase
             ->once();
 
         $this->automation->performStateAssertion($assertion);
+    }
+
+    public function testPerformStateAssertionUsesConfiguredAttributePrefix(): void
+    {
+        $automation = new CypressAutomation(
+            $this->fieldActionRegistry,
+            $this->interactionRegistry,
+            $this->regionAssertionRegistry,
+            $this->stateAssertionRegistry,
+            $this->cy,
+            'my-app'
+        );
+        $assertion = new ExpectState('loading-spinner');
+        $getChain = mock();
+        $getChain->allows('then');
+
+        $this->cy->expects()
+            ->get('[data-my-app-state="loading-spinner"]')
+            ->once()
+            ->andReturn($getChain);
+
+        $automation->performStateAssertion($assertion);
     }
 
     public function testVisitPageCallsCyVisit(): void

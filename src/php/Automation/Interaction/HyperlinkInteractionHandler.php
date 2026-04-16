@@ -47,8 +47,9 @@ class HyperlinkInteractionHandler implements InteractionHandlerInterface
      */
     public function followHyperlink(Enact $interaction, CypressAutomation $automation): void
     {
+        $attributePrefix = $automation->getAttributePrefix();
         $cy = $automation->getCy();
 
-        $cy->get('[data-tappet-interaction="' . $interaction->getInteractionHandle() . '"]')->click();
+        $cy->get('[data-' . $attributePrefix . '-interaction="' . $interaction->getInteractionHandle() . '"]')->click();
     }
 }

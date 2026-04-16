@@ -36,8 +36,10 @@ class ButtonInteractionHandlerTest extends AbstractTestCase
         parent::setUp();
 
         $this->cy = mock();
-        $this->automation = mock(CypressAutomation::class);
-        $this->automation->allows('getCy')->andReturn($this->cy);
+        $this->automation = mock(CypressAutomation::class, [
+            'getAttributePrefix' => 'ui',
+            'getCy' => $this->cy,
+        ]);
 
         $this->handler = new ButtonInteractionHandler();
     }
@@ -53,16 +55,36 @@ class ButtonInteractionHandlerTest extends AbstractTestCase
     public function testEnactHandlerClicksButtonViaCyApi(): void
     {
         $interaction = new Enact('publish');
-
         $getChain = mock();
+
         $getChain->expects()
             ->click()
             ->once();
         $this->cy->expects()
-            ->get('[data-tappet-interaction="publish"]')
+            ->get('[data-ui-interaction="publish"]')
             ->once()
             ->andReturn($getChain);
 
         $this->handler->getHandlers()[Enact::class]($interaction, $this->automation);
+    }
+
+    public function testEnactHandlerUsesConfiguredAttributePrefix(): void
+    {
+        $interaction = new Enact('publish');
+        $automation = mock(CypressAutomation::class, [
+            'getCy' => $this->cy,
+            'getAttributePrefix' => 'my-app',
+        ]);
+        $getChain = mock();
+
+        $getChain->expects()
+            ->click()
+            ->once();
+        $this->cy->expects()
+            ->get('[data-my-app-interaction="publish"]')
+            ->once()
+            ->andReturn($getChain);
+
+        $this->handler->getHandlers()[Enact::class]($interaction, $automation);
     }
 }

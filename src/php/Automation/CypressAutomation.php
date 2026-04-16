@@ -35,6 +35,10 @@ use Tappet\Core\Exception\UnresolvableTypeException;
 class CypressAutomation implements AutomationInterface
 {
     /**
+     * @var string
+     */
+    private $attributePrefix;
+    /**
      * @var mixed
      */
     private $cy;
@@ -60,8 +64,10 @@ class CypressAutomation implements AutomationInterface
         InteractionRegistryInterface $interactionRegistry,
         RegionAssertionRegistryInterface $regionAssertionRegistry,
         StateAssertionRegistryInterface $stateAssertionRegistry,
-        mixed $cy
+        mixed $cy,
+        string $attributePrefix
     ) {
+        $this->attributePrefix = $attributePrefix;
         $this->cy = $cy;
         $this->fieldActionRegistry = $fieldActionRegistry;
         $this->interactionRegistry = $interactionRegistry;
@@ -82,6 +88,14 @@ class CypressAutomation implements AutomationInterface
     }
 
     /**
+     * Fetches the prefix used for UI automation `data-` attributes.
+     */
+    public function getAttributePrefix(): string
+    {
+        return $this->attributePrefix;
+    }
+
+    /**
      * Fetches the underlying Cypress `cy` object.
      */
     public function getCy(): mixed
@@ -94,13 +108,14 @@ class CypressAutomation implements AutomationInterface
      */
     public function performFieldAction(FieldActionInterface $action): void
     {
+        $attributePrefix = $this->attributePrefix;
         $automation = $this;
         $fieldHandle = $action->getFieldHandle();
         $fieldActionRegistry = $this->fieldActionRegistry;
 
-        $this->cy->get('[data-tappet-field="' . $fieldHandle . '"]')
-            ->then(function ($field) use ($action, $automation, $fieldActionRegistry, $fieldHandle) {
-                $fieldType = $field->attr('data-tappet-field-type');
+        $this->cy->get('[data-' . $attributePrefix . '-field="' . $fieldHandle . '"]')
+            ->then(function ($field) use ($action, $attributePrefix, $automation, $fieldActionRegistry, $fieldHandle) {
+                $fieldType = $field->attr('data-' . $attributePrefix . '-field-type');
 
                 if (!$fieldType) {
                     switch ($field->prop('tagName')) {
@@ -134,13 +149,14 @@ class CypressAutomation implements AutomationInterface
      */
     public function performInteraction(InteractionInterface $interaction): void
     {
+        $attributePrefix = $this->attributePrefix;
         $automation = $this;
         $interactionHandle = $interaction->getInteractionHandle();
         $interactionRegistry = $this->interactionRegistry;
 
-        $this->cy->get('[data-tappet-interaction="' . $interactionHandle . '"]')
-            ->then(function ($element) use ($automation, $interaction, $interactionRegistry, $interactionHandle) {
-                $interactionType = $element->attr('data-tappet-interaction-type');
+        $this->cy->get('[data-' . $this->attributePrefix . '-interaction="' . $interactionHandle . '"]')
+            ->then(function ($element) use ($attributePrefix, $automation, $interaction, $interactionRegistry, $interactionHandle) {
+                $interactionType = $element->attr('data-' . $attributePrefix . '-interaction-type');
 
                 if (!$interactionType) {
                     switch ($element->prop('tagName')) {
@@ -181,13 +197,14 @@ class CypressAutomation implements AutomationInterface
      */
     public function performRegionAssertion(RegionAssertionInterface $assertion): void
     {
+        $attributePrefix = $this->attributePrefix;
         $automation = $this;
         $regionHandle = $assertion->getRegionHandle();
         $regionAssertionRegistry = $this->regionAssertionRegistry;
 
-        $this->cy->get('[data-tappet-region="' . $regionHandle . '"]')
-            ->then(function ($element) use ($assertion, $automation, $regionAssertionRegistry) {
-                $regionType = $element->attr('data-tappet-region-type') ?: 'text';
+        $this->cy->get('[data-' . $attributePrefix . '-region="' . $regionHandle . '"]')
+            ->then(function ($element) use ($attributePrefix, $automation, $assertion, $regionAssertionRegistry) {
+                $regionType = $element->attr('data-' . $attributePrefix . '-region-type') ?: 'text';
 
                 $regionAssertionRegistry->handleRegionAssertion($regionType, $assertion, $automation);
             });
@@ -198,13 +215,14 @@ class CypressAutomation implements AutomationInterface
      */
     public function performStateAssertion(StateAssertionInterface $assertion): void
     {
+        $attributePrefix = $this->attributePrefix;
         $automation = $this;
         $stateHandle = $assertion->getStateHandle();
         $stateAssertionRegistry = $this->stateAssertionRegistry;
 
-        $this->cy->get('[data-tappet-state="' . $stateHandle . '"]')
-            ->then(function ($element) use ($assertion, $automation, $stateAssertionRegistry) {
-                $stateType = $element->attr('data-tappet-state-type') ?: 'exists';
+        $this->cy->get('[data-' . $attributePrefix . '-state="' . $stateHandle . '"]')
+            ->then(function ($element) use ($attributePrefix, $automation, $assertion, $stateAssertionRegistry) {
+                $stateType = $element->attr('data-' . $attributePrefix . '-state-type') ?: 'exists';
 
                 $stateAssertionRegistry->handleStateAssertion($stateType, $assertion, $automation);
             });

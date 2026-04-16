@@ -153,7 +153,7 @@ if ($method === 'GET' && $uri === '/users') {
     <head><meta charset="utf-8"><title>User List</title></head>
     <body>
     <?php if ($flash): ?>
-        <div data-tappet-region="flash"
+        <div data-ui-region="flash"
              data-flash-type="<?= htmlspecialchars($flash['type']) ?>">
             <?= htmlspecialchars($flash['message']) ?>
         </div>
@@ -194,13 +194,13 @@ if ($method === 'GET' && preg_match('#^/users/(\d+)$#', $uri, $m)) {
     <form method="POST" action="/users/<?= $userId ?>">
         <input type="text"
                name="first_name"
-               data-tappet-field="first-name"
+               data-ui-field="first-name"
                value="<?= htmlspecialchars($user['first_name']) ?>">
         <input type="text"
                name="last_name"
-               data-tappet-field="last-name"
+               data-ui-field="last-name"
                value="<?= htmlspecialchars($user['last_name']) ?>">
-        <button type="submit" data-tappet-interaction="save">Save</button>
+        <button type="submit" data-ui-interaction="save">Save</button>
     </form>
     </body>
     </html>

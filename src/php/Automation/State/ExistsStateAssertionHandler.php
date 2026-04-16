@@ -47,8 +47,9 @@ class ExistsStateAssertionHandler implements StateAssertionHandlerInterface
      */
     public function assertStateExists(ExpectState $assertion, CypressAutomation $automation): void
     {
+        $attributePrefix = $automation->getAttributePrefix();
         $cy = $automation->getCy();
 
-        $cy->get('[data-tappet-state="' . $assertion->getStateHandle() . '"]')->should('exist');
+        $cy->get('[data-' . $attributePrefix . '-state="' . $assertion->getStateHandle() . '"]')->should('exist');
     }
 }
