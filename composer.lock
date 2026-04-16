@@ -4,11 +4,11 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "969aa1b404d6eaafd87b840c83e636c6",
+    "content-hash": "c01fcbddc03307e366a67252ded662f2",
     "packages": [
         {
             "name": "tappet/tappet",
-            "version": "dev-main",
+            "version": "v0.1.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/nytris/tappet.git",
@@ -30,7 +30,6 @@
                 "phpstan/phpstan-mockery": "^1.1",
                 "phpunit/phpunit": "^10.2"
             },
-            "default-branch": true,
             "bin": [
                 "bin/tappet"
             ],
@@ -46,7 +45,7 @@
             ],
             "support": {
                 "issues": "https://github.com/nytris/tappet/issues",
-                "source": "https://github.com/nytris/tappet/tree/main"
+                "source": "https://github.com/nytris/tappet/tree/v0.1.0"
             },
             "time": "2026-04-15T23:35:55+00:00"
         }
@@ -1961,9 +1960,7 @@
     ],
     "aliases": [],
     "minimum-stability": "stable",
-    "stability-flags": {
-        "tappet/tappet": 20
-    },
+    "stability-flags": {},
     "prefer-stable": false,
     "prefer-lowest": false,
     "platform": {
