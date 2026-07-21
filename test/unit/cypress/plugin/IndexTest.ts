@@ -21,11 +21,13 @@ type TaskHandlers = Record<
 describe('cypress/plugin/index', () => {
     describe('createPlugin()', () => {
         let stubPreprocessorFactory: sinon.SinonStub;
+        let StubAgent: sinon.SinonStub;
         let StubUniterPlugin: sinon.SinonStub;
         let stubRequest: sinon.SinonStub;
 
         beforeEach(() => {
             stubPreprocessorFactory = sinon.stub().returns('stub-preprocessor');
+            StubAgent = sinon.stub().returns({});
             StubUniterPlugin = sinon.stub().returns({});
             stubRequest = sinon.stub();
         });
@@ -355,6 +357,51 @@ describe('cypress/plugin/index', () => {
                     expect(stubRequest.firstCall.args[0]).to.equal(
                         'https://changed.example.com/.well-known/tappet/fixture/My--Fixture',
                     );
+                });
+            });
+
+            describe('TLS verification', () => {
+                function setup(env: Record<string, unknown> = {}): void {
+                    const localOn = sinon.stub<Parameters<CypressOnFunction>>();
+                    createPlugin(
+                        stubPreprocessorFactory,
+                        StubUniterPlugin as unknown as new () => object,
+                        stubRequest,
+                        StubAgent as unknown as typeof import('undici').Agent,
+                    )(localOn, {
+                        env: {
+                            tappetApiBaseUrl: 'https://my-app.example.com',
+                            tappetApiKey: 'test-key',
+                            ...env,
+                        },
+                    });
+                }
+
+                it('should verify TLS by default when tappetApiTlsVerification is not set', () => {
+                    setup();
+
+                    expect(StubAgent).to.have.been.calledOnce;
+                    expect(StubAgent.firstCall.args[0]).to.deep.equal({
+                        connect: { rejectUnauthorized: true },
+                    });
+                });
+
+                it('should verify TLS when tappetApiTlsVerification is not "false"', () => {
+                    setup({ tappetApiTlsVerification: 'true' });
+
+                    expect(StubAgent).to.have.been.calledOnce;
+                    expect(StubAgent.firstCall.args[0]).to.deep.equal({
+                        connect: { rejectUnauthorized: true },
+                    });
+                });
+
+                it('should not verify TLS when tappetApiTlsVerification is "false"', () => {
+                    setup({ tappetApiTlsVerification: 'false' });
+
+                    expect(StubAgent).to.have.been.calledOnce;
+                    expect(StubAgent.firstCall.args[0]).to.deep.equal({
+                        connect: { rejectUnauthorized: false },
+                    });
                 });
             });
         });

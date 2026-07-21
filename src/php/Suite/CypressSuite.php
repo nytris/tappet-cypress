@@ -205,6 +205,7 @@ class CypressSuite implements EventListenerRegistryInterface, SuiteInterface
         string $baseUrl,
         string $apiBaseUrl,
         string $apiKey,
+        bool $apiTlsVerification,
         ?string $filter,
         array $options
     ): ResultInterface {
@@ -212,6 +213,7 @@ class CypressSuite implements EventListenerRegistryInterface, SuiteInterface
             'tappetSuite' => $suiteName,
             'tappetApiBaseUrl' => $apiBaseUrl,
             'tappetApiKey' => $apiKey,
+            'tappetApiTlsVerification' => $apiTlsVerification ? 'true' : 'false',
         ];
 
         if ($filter !== null) {

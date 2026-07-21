@@ -9,13 +9,6 @@
 import { Agent, request } from 'undici';
 import UniterPlugin from 'webpack-uniter-plugin';
 
-// TODO: Only apply this when a certain config option is set - verify TLS by default.
-const httpsAgent = new Agent({
-    connect: {
-        rejectUnauthorized: false,
-    },
-});
-
 /**
  * Type of the preprocessor factory function from @cypress/webpack-preprocessor.
  */
@@ -86,9 +79,18 @@ export function createPlugin(
     webpackPreprocessor: WebpackPreprocessorFactory,
     UniterPluginCtor: typeof UniterPlugin,
     requestFn: typeof request = request,
+    AgentCtor: typeof Agent = Agent,
 ): (on: CypressOnFunction, config?: CypressConfig) => void {
     return (on: CypressOnFunction, config: CypressConfig = {}): void => {
         const hosts = config.hosts ?? {};
+        const apiTlsVerification =
+            (config.env?.tappetApiTlsVerification as string | undefined) !==
+            'false';
+        const httpsAgent = new AgentCtor({
+            connect: {
+                rejectUnauthorized: apiTlsVerification,
+            },
+        });
         const mappedRequest = (
             url: string,
             options?: Parameters<typeof request>[1],

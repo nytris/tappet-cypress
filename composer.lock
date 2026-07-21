@@ -4,20 +4,20 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "5b55e51dab7c8850bebe7de8c5702dd2",
+    "content-hash": "bc33099057d9f02bd3914591f2f707c0",
     "packages": [
         {
             "name": "tappet/tappet",
-            "version": "v0.2.0",
+            "version": "v0.2.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/nytris/tappet.git",
-                "reference": "49ae153d36c4da22d0e1932f7c1f278549757a6c"
+                "reference": "bb685c4bc22ded7199997dacd4ec08bde30f784c"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/nytris/tappet/zipball/49ae153d36c4da22d0e1932f7c1f278549757a6c",
-                "reference": "49ae153d36c4da22d0e1932f7c1f278549757a6c",
+                "url": "https://api.github.com/repos/nytris/tappet/zipball/bb685c4bc22ded7199997dacd4ec08bde30f784c",
+                "reference": "bb685c4bc22ded7199997dacd4ec08bde30f784c",
                 "shasum": ""
             },
             "require": {
@@ -45,9 +45,9 @@
             ],
             "support": {
                 "issues": "https://github.com/nytris/tappet/issues",
-                "source": "https://github.com/nytris/tappet/tree/v0.2.0"
+                "source": "https://github.com/nytris/tappet/tree/v0.2.1"
             },
-            "time": "2026-07-21T19:19:37+00:00"
+            "time": "2026-07-21T20:31:25+00:00"
         }
     ],
     "packages-dev": [
