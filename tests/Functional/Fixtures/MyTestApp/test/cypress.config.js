@@ -16,8 +16,8 @@ module.exports = defineConfig({
       tappetSuite: 'my-suite',
       tappetApiKey: 'test-api-key',
     },
-    setupNodeEvents(on) {
-      tappetPlugin(on);
+    setupNodeEvents(on, config) {
+      tappetPlugin(on, config);
     },
     specPattern: 'spec/**/*.spec.php',
   },

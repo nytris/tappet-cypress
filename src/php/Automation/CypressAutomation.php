@@ -13,17 +13,22 @@ declare(strict_types=1);
 
 namespace Tappet\Cypress\Automation;
 
-use Tappet\Core\Action\FieldActionInterface;
-use Tappet\Core\Action\InteractionInterface;
-use Tappet\Core\Assertion\RegionAssertionInterface;
-use Tappet\Core\Assertion\StateAssertionInterface;
-use Tappet\Core\Automation\AutomationInterface;
-use Tappet\Core\Automation\Field\FieldActionRegistryInterface;
-use Tappet\Core\Automation\Interaction\InteractionRegistryInterface;
-use Tappet\Core\Automation\Region\RegionAssertionRegistryInterface;
-use Tappet\Core\Automation\State\StateAssertionRegistryInterface;
-use Tappet\Core\Environment\EnvironmentInterface;
-use Tappet\Core\Exception\UnresolvableTypeException;
+use Tappet\Cypress\Automation\Matcher\ContextInterface;
+use Tappet\Cypress\Automation\Resolver\TypeResolverInterface;
+use Tappet\Runner\Action\FieldActionInterface;
+use Tappet\Runner\Action\InteractionInterface;
+use Tappet\Runner\Assertion\FieldAssertionInterface;
+use Tappet\Runner\Assertion\RegionAssertionInterface;
+use Tappet\Runner\Assertion\StateAssertionInterface;
+use Tappet\Runner\Automation\Field\FieldActionRegistryInterface;
+use Tappet\Runner\Automation\Field\FieldAssertionRegistryInterface;
+use Tappet\Runner\Automation\Interaction\InteractionRegistryInterface;
+use Tappet\Runner\Automation\Region\RegionAssertionRegistryInterface;
+use Tappet\Runner\Automation\State\StateAssertionRegistryInterface;
+use Tappet\Runner\Exception\TransitionLogNotEmptyException;
+use Tappet\Runner\Exception\TransitionWaitTimeoutException;
+use Tappet\Runner\Transition\Log\TransitionLogInterface;
+use Tappet\Runner\Transition\TransitionInterface;
 
 /**
  * Class CypressAutomation.
@@ -32,63 +37,66 @@ use Tappet\Core\Exception\UnresolvableTypeException;
  *
  * @author Dan Phillimore <dan@ovms.co>
  */
-class CypressAutomation implements AutomationInterface
+class CypressAutomation implements CypressAutomationInterface
 {
-    /**
-     * @var string
-     */
-    private $attributePrefix;
-    /**
-     * @var mixed
-     */
-    private $cy;
-    /**
-     * @var FieldActionRegistryInterface
-     */
-    private $fieldActionRegistry;
-    /**
-     * @var InteractionRegistryInterface
-     */
-    private $interactionRegistry;
-    /**
-     * @var RegionAssertionRegistryInterface
-     */
-    private $regionAssertionRegistry;
-    /**
-     * @var StateAssertionRegistryInterface
-     */
-    private $stateAssertionRegistry;
-
     public function __construct(
-        FieldActionRegistryInterface $fieldActionRegistry,
-        InteractionRegistryInterface $interactionRegistry,
-        RegionAssertionRegistryInterface $regionAssertionRegistry,
-        StateAssertionRegistryInterface $stateAssertionRegistry,
-        mixed $cy,
-        string $attributePrefix
+        private readonly FieldActionRegistryInterface $fieldActionRegistry,
+        private readonly FieldAssertionRegistryInterface $fieldAssertionRegistry,
+        private readonly InteractionRegistryInterface $interactionRegistry,
+        private readonly RegionAssertionRegistryInterface $regionAssertionRegistry,
+        private readonly StateAssertionRegistryInterface $stateAssertionRegistry,
+        private readonly TypeResolverInterface $typeResolver,
+        private readonly mixed $cy,
+        private readonly TransitionLogInterface $transitionLog,
+        private readonly string $attributePrefix
     ) {
-        $this->attributePrefix = $attributePrefix;
-        $this->cy = $cy;
-        $this->fieldActionRegistry = $fieldActionRegistry;
-        $this->interactionRegistry = $interactionRegistry;
-        $this->regionAssertionRegistry = $regionAssertionRegistry;
-        $this->stateAssertionRegistry = $stateAssertionRegistry;
     }
 
     /**
      * @inheritDoc
      */
-    public function assertPage(string $url, EnvironmentInterface $environment): void
+    public function assertTransitionLogEmpty(): void
     {
-        if ($url[0] === '/') {
-            $url = $environment->getBaseUrl() . $url;
-        }
+        $transitionLog = $this->transitionLog;
 
-        $this->cy->url()->should('eq', $url);
+        $this->cy->then(function () use ($transitionLog): void {
+            $cursor = $transitionLog->getCursor();
+            $count = $transitionLog->getCount();
+
+            if ($cursor < $count) {
+                $entries = $transitionLog->getEntries();
+                $entry = $entries[$cursor];
+
+                throw new TransitionLogNotEmptyException(
+                    'Expected transition log to be empty at cursor ' . $cursor .
+                    ' but found unconsumed entry: ' . $entry->getDescription() .
+                    ".\nLog:\n" . $transitionLog->format()
+                );
+            }
+        });
     }
 
     /**
-     * Fetches the prefix used for UI automation `data-` attributes.
+     * @inheritDoc
+     */
+    public function checkForUnexpectedTransition(TransitionInterface $transition): void
+    {
+        $transitionLog = $this->transitionLog;
+
+        $this->cy->then(function () use ($transitionLog, $transition): void {
+            $cursor = $transitionLog->getCursor();
+            $count = $transitionLog->getCount();
+
+            if ($cursor >= $count) {
+                return; // No pending transition, as expected.
+            }
+
+            $transitionLog->consumeTransition($transition);
+        });
+    }
+
+    /**
+     * @inheritDoc
      */
     public function getAttributePrefix(): string
     {
@@ -96,7 +104,7 @@ class CypressAutomation implements AutomationInterface
     }
 
     /**
-     * Fetches the underlying Cypress `cy` object.
+     * @inheritDoc
      */
     public function getCy(): mixed
     {
@@ -109,38 +117,45 @@ class CypressAutomation implements AutomationInterface
     public function performFieldAction(FieldActionInterface $action): void
     {
         $attributePrefix = $this->attributePrefix;
-        $automation = $this;
         $fieldHandle = $action->getFieldHandle();
         $fieldActionRegistry = $this->fieldActionRegistry;
+        $typeResolver = $this->typeResolver;
 
         $this->cy->get('[data-' . $attributePrefix . '-field="' . $fieldHandle . '"]')
-            ->then(function ($field) use ($action, $attributePrefix, $automation, $fieldActionRegistry, $fieldHandle) {
-                $fieldType = $field->attr('data-' . $attributePrefix . '-field-type');
+            ->then(function ($field) use (
+                $action,
+                $attributePrefix,
+                $fieldActionRegistry,
+                $fieldHandle,
+                $typeResolver
+            ) {
+                $fieldType = $typeResolver->resolveFieldType($field, $fieldHandle, $attributePrefix);
 
-                if (!$fieldType) {
-                    switch ($field->prop('tagName')) {
-                        case 'INPUT':
-                            $fieldType = strtolower($field->attr('type'));
+                $fieldActionRegistry->handleFieldAction($fieldType, $action);
+            });
+    }
 
-                            if ($fieldType === 'password') {
-                                $fieldType = 'text';
-                            }
+    /**
+     * @inheritDoc
+     */
+    public function performFieldAssertion(FieldAssertionInterface $assertion): void
+    {
+        $attributePrefix = $this->attributePrefix;
+        $fieldHandle = $assertion->getFieldHandle();
+        $fieldAssertionRegistry = $this->fieldAssertionRegistry;
+        $typeResolver = $this->typeResolver;
 
-                            break;
-                        case 'SELECT':
-                            $fieldType = 'select';
-                            break;
-                        case 'TEXTAREA':
-                            $fieldType = 'text';
-                            break;
-                        default:
-                            throw new UnresolvableTypeException(
-                                'No field type could be resolved for field with handle "' . $fieldHandle . '"'
-                            );
-                    }
-                }
+        $this->cy->get('[data-' . $attributePrefix . '-field="' . $fieldHandle . '"]')
+            ->then(function ($field) use (
+                $assertion,
+                $attributePrefix,
+                $fieldAssertionRegistry,
+                $fieldHandle,
+                $typeResolver
+            ) {
+                $fieldType = $typeResolver->resolveFieldType($field, $fieldHandle, $attributePrefix);
 
-                $fieldActionRegistry->handleFieldAction($fieldType, $action, $automation);
+                $fieldAssertionRegistry->handleFieldAssertion($fieldType, $assertion);
             });
     }
 
@@ -150,45 +165,21 @@ class CypressAutomation implements AutomationInterface
     public function performInteraction(InteractionInterface $interaction): void
     {
         $attributePrefix = $this->attributePrefix;
-        $automation = $this;
         $interactionHandle = $interaction->getInteractionHandle();
         $interactionRegistry = $this->interactionRegistry;
+        $typeResolver = $this->typeResolver;
 
         $this->cy->get('[data-' . $this->attributePrefix . '-interaction="' . $interactionHandle . '"]')
-            ->then(function ($element) use ($attributePrefix, $automation, $interaction, $interactionRegistry, $interactionHandle) {
-                $interactionType = $element->attr('data-' . $attributePrefix . '-interaction-type');
+            ->then(function ($element) use (
+                $attributePrefix,
+                $interaction,
+                $interactionRegistry,
+                $interactionHandle,
+                $typeResolver
+            ) {
+                $interactionType = $typeResolver->resolveInteractionType($element, $interactionHandle, $attributePrefix);
 
-                if (!$interactionType) {
-                    switch ($element->prop('tagName')) {
-                        case 'A':
-                            if ($element->attr('href') !== null) {
-                                $interactionType = 'hyperlink';
-                            } else {
-                                throw new UnresolvableTypeException(
-                                    'No interaction type could be resolved for interaction with handle "' . $interactionHandle . '"'
-                                );
-                            }
-                            break;
-                        case 'BUTTON':
-                            $interactionType = 'button';
-                            break;
-                        case 'INPUT':
-                            if (strtolower($element->attr('type')) === 'button') {
-                                $interactionType = 'button';
-                            } else {
-                                throw new UnresolvableTypeException(
-                                    'No interaction type could be resolved for interaction with handle "' . $interactionHandle . '"'
-                                );
-                            }
-                            break;
-                        default:
-                            throw new UnresolvableTypeException(
-                                'No interaction type could be resolved for interaction with handle "' . $interactionHandle . '"'
-                            );
-                    }
-                }
-
-                $interactionRegistry->handleInteraction($interactionType, $interaction, $automation);
+                $interactionRegistry->handleInteraction($interactionType, $interaction);
             });
     }
 
@@ -198,15 +189,15 @@ class CypressAutomation implements AutomationInterface
     public function performRegionAssertion(RegionAssertionInterface $assertion): void
     {
         $attributePrefix = $this->attributePrefix;
-        $automation = $this;
         $regionHandle = $assertion->getRegionHandle();
         $regionAssertionRegistry = $this->regionAssertionRegistry;
+        $typeResolver = $this->typeResolver;
 
         $this->cy->get('[data-' . $attributePrefix . '-region="' . $regionHandle . '"]')
-            ->then(function ($element) use ($attributePrefix, $automation, $assertion, $regionAssertionRegistry) {
-                $regionType = $element->attr('data-' . $attributePrefix . '-region-type') ?: 'text';
+            ->then(function ($element) use ($attributePrefix, $assertion, $regionAssertionRegistry, $typeResolver) {
+                $regionType = $typeResolver->resolveRegionType($element, $attributePrefix);
 
-                $regionAssertionRegistry->handleRegionAssertion($regionType, $assertion, $automation);
+                $regionAssertionRegistry->handleRegionAssertion($regionType, $assertion);
             });
     }
 
@@ -216,16 +207,31 @@ class CypressAutomation implements AutomationInterface
     public function performStateAssertion(StateAssertionInterface $assertion): void
     {
         $attributePrefix = $this->attributePrefix;
-        $automation = $this;
         $stateHandle = $assertion->getStateHandle();
         $stateAssertionRegistry = $this->stateAssertionRegistry;
 
         $this->cy->get('[data-' . $attributePrefix . '-state="' . $stateHandle . '"]')
-            ->then(function ($element) use ($attributePrefix, $automation, $assertion, $stateAssertionRegistry) {
+            ->then(function ($element) use ($attributePrefix, $assertion, $stateAssertionRegistry) {
                 $stateType = $element->attr('data-' . $attributePrefix . '-state-type') ?: 'exists';
 
-                $stateAssertionRegistry->handleStateAssertion($stateType, $assertion, $automation);
+                $stateAssertionRegistry->handleStateAssertion($stateType, $assertion);
             });
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function pushTransition(TransitionInterface $transition): void
+    {
+        $this->transitionLog->pushTransition($transition);
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function resolve(ContextInterface $context): mixed
+    {
+        return $context->getTarget();
     }
 
     /**
@@ -234,5 +240,28 @@ class CypressAutomation implements AutomationInterface
     public function visitPage(string $url): void
     {
         $this->cy->visit($url);
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function waitForTransition(TransitionInterface $transition): void
+    {
+        $transitionLog = $this->transitionLog;
+
+        // Use cy.wrap(...) so that the check is retried until it doesn't throw (or Cypress' command timeout is reached).
+        $this->cy->wrap(null)->should(function () use ($transitionLog, $transition): void {
+            $cursor = $transitionLog->getCursor();
+            $count = $transitionLog->getCount();
+
+            if ($cursor >= $count) {
+                throw new TransitionWaitTimeoutException(
+                    'Waiting for ' . $transition->getDescription() . ' but log is empty at cursor ' . $cursor .
+                    ".\nLog:\n" . $transitionLog->format()
+                );
+            }
+
+            $transitionLog->consumeTransition($transition);
+        });
     }
 }

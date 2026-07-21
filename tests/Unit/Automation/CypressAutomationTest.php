@@ -15,19 +15,26 @@ namespace Tappet\Cypress\Tests\Unit\Automation;
 
 use Mockery;
 use Mockery\MockInterface;
-use Tappet\Core\Action\FieldActionInterface;
-use Tappet\Core\Automation\Field\FieldActionRegistryInterface;
-use Tappet\Core\Automation\Interaction\InteractionRegistryInterface;
-use Tappet\Core\Automation\Region\RegionAssertionRegistryInterface;
-use Tappet\Core\Automation\State\StateAssertionRegistryInterface;
-use Tappet\Core\Environment\EnvironmentInterface;
-use Tappet\Core\Exception\UnresolvableTypeException;
-use Tappet\Core\Standard\Action\Enact;
-use Tappet\Core\Standard\Assertion\ExpectRegionContains;
-use Tappet\Core\Standard\Assertion\ExpectRegionDoesNotContain;
-use Tappet\Core\Standard\Assertion\ExpectState;
 use Tappet\Cypress\Automation\CypressAutomation;
+use Tappet\Cypress\Automation\Matcher\Context;
+use Tappet\Cypress\Automation\Resolver\TypeResolverInterface;
 use Tappet\Cypress\Tests\AbstractTestCase;
+use Tappet\Runner\Action\FieldActionInterface;
+use Tappet\Runner\Assertion\FieldAssertionInterface;
+use Tappet\Runner\Automation\Field\FieldActionRegistryInterface;
+use Tappet\Runner\Automation\Field\FieldAssertionRegistryInterface;
+use Tappet\Runner\Automation\Interaction\InteractionRegistryInterface;
+use Tappet\Runner\Automation\Region\RegionAssertionRegistryInterface;
+use Tappet\Runner\Automation\State\StateAssertionRegistryInterface;
+use Tappet\Runner\Exception\TransitionLogNotEmptyException;
+use Tappet\Runner\Exception\TransitionWaitTimeoutException;
+use Tappet\Runner\Exception\UnexpectedTransitionException;
+use Tappet\Runner\Standard\Action\Enact;
+use Tappet\Runner\Standard\Assertion\ExpectRegionContains;
+use Tappet\Runner\Standard\Assertion\ExpectState;
+use Tappet\Runner\Transition\Log\TransitionLogInterface;
+use Tappet\Runner\Transition\NavigationTransition;
+use Tappet\Runner\Transition\TransitionInterface;
 
 /**
  * Class CypressAutomationTest.
@@ -37,12 +44,32 @@ use Tappet\Cypress\Tests\AbstractTestCase;
 class CypressAutomationTest extends AbstractTestCase
 {
     private CypressAutomation $automation;
-    // $cy is a Uniter FFI wrapper of Cypress's cy global; stub as an anonymous mock.
+    /**
+     * A Uniter FFI wrapper of Cypress's cy global, stubbed as an anonymous mock.
+     */
     private mixed $cy;
+    /**
+     * @var FieldActionRegistryInterface&MockInterface
+     */
     private FieldActionRegistryInterface&MockInterface $fieldActionRegistry;
+    /**
+     * @var FieldAssertionRegistryInterface&MockInterface
+     */
+    private FieldAssertionRegistryInterface&MockInterface $fieldAssertionRegistry;
+    /**
+     * @var InteractionRegistryInterface&MockInterface
+     */
     private InteractionRegistryInterface&MockInterface $interactionRegistry;
+    /**
+     * @var RegionAssertionRegistryInterface&MockInterface
+     */
     private RegionAssertionRegistryInterface&MockInterface $regionAssertionRegistry;
+    /**
+     * @var StateAssertionRegistryInterface&MockInterface
+     */
     private StateAssertionRegistryInterface&MockInterface $stateAssertionRegistry;
+    private TransitionLogInterface&MockInterface $transitionLog;
+    private TypeResolverInterface&MockInterface $typeResolver;
 
     public function setUp(): void
     {
@@ -50,51 +77,241 @@ class CypressAutomationTest extends AbstractTestCase
 
         $this->cy = mock();
         $this->fieldActionRegistry = mock(FieldActionRegistryInterface::class);
+        $this->fieldAssertionRegistry = mock(FieldAssertionRegistryInterface::class);
         $this->interactionRegistry = mock(InteractionRegistryInterface::class);
         $this->regionAssertionRegistry = mock(RegionAssertionRegistryInterface::class);
         $this->stateAssertionRegistry = mock(StateAssertionRegistryInterface::class);
+        $this->transitionLog = mock(TransitionLogInterface::class);
+        $this->typeResolver = mock(TypeResolverInterface::class);
 
         $this->automation = new CypressAutomation(
             $this->fieldActionRegistry,
+            $this->fieldAssertionRegistry,
             $this->interactionRegistry,
             $this->regionAssertionRegistry,
             $this->stateAssertionRegistry,
+            $this->typeResolver,
             $this->cy,
+            $this->transitionLog,
             'ui'
         );
     }
 
-    public function testAssertPageCallsCyUrlThenShould(): void
+    public function testAssertTransitionLogEmptyEnqueuesCyThen(): void
     {
-        $environment = mock(EnvironmentInterface::class);
-        $urlChain = mock();
-
-        $urlChain->expects()
-            ->should('eq', 'https://example.com/dashboard')
-            ->once();
         $this->cy->expects()
-            ->url()
-            ->once()
-            ->andReturn($urlChain);
+            ->then(Mockery::on(fn ($fn) => is_callable($fn)))
+            ->once();
 
-        $this->automation->assertPage('https://example.com/dashboard', $environment);
+        $this->automation->assertTransitionLogEmpty();
     }
 
-    public function testAssertPagePrependsBaseUrlForRelativePaths(): void
+    public function testAssertTransitionLogEmptyPassesWhenLogIsEmpty(): void
     {
-        $environment = mock(EnvironmentInterface::class);
-        $environment->allows('getBaseUrl')->andReturn('https://example.com');
-        $urlChain = mock();
+        $this->transitionLog->allows('getCursor')->andReturn(0);
+        $this->transitionLog->allows('getCount')->andReturn(0);
+        $captured = null;
+        $this->cy->allows()->then(Mockery::on(function (callable $fn) use (&$captured): bool {
+            $captured = $fn;
+            return true;
+        }));
 
-        $urlChain->expects()
-            ->should('eq', 'https://example.com/dashboard')
+        $this->automation->assertTransitionLogEmpty();
+
+        // Should not throw.
+        ($captured)();
+        $this->addToAssertionCount(1);
+    }
+
+    public function testAssertTransitionLogEmptyThrowsWhenUnconsumedEntryExists(): void
+    {
+        $this->transitionLog->allows('getCursor')->andReturn(0);
+        $this->transitionLog->allows('getCount')->andReturn(1);
+        $entry = mock(TransitionInterface::class);
+        $entry->allows('getDescription')->andReturn('modal "my-modal" opening');
+        $this->transitionLog->allows('getEntries')->andReturn([$entry]);
+        $this->transitionLog->allows('format')->andReturn('> [0] modal "my-modal" opening');
+        $captured = null;
+        $this->cy->allows()->then(Mockery::on(function (callable $fn) use (&$captured): bool {
+            $captured = $fn;
+            return true;
+        }));
+
+        $this->automation->assertTransitionLogEmpty();
+
+        $this->expectException(TransitionLogNotEmptyException::class);
+        $this->expectExceptionMessage('Expected transition log to be empty');
+        $this->expectExceptionMessage('modal "my-modal" opening');
+
+        ($captured)();
+    }
+
+    public function testCheckForUnexpectedTransitionEnqueuesCyThen(): void
+    {
+        $transition = new NavigationTransition('/page');
+
+        $this->cy->expects()
+            ->then(Mockery::on(fn ($fn) => is_callable($fn)))
+            ->once();
+
+        $this->automation->checkForUnexpectedTransition($transition);
+    }
+
+    public function testCheckForUnexpectedTransitionPassesWhenLogHasNoUnconsumedEntries(): void
+    {
+        $transition = new NavigationTransition('/page');
+        $this->transitionLog->allows('getCursor')->andReturn(0);
+        $this->transitionLog->allows('getCount')->andReturn(0);
+        $captured = null;
+        $this->cy->allows()->then(Mockery::on(function (callable $fn) use (&$captured): bool {
+            $captured = $fn;
+            return true;
+        }));
+
+        $this->automation->checkForUnexpectedTransition($transition);
+
+        // Should not throw.
+        ($captured)();
+        $this->addToAssertionCount(1);
+    }
+
+    public function testCheckForUnexpectedTransitionConsumesMatchingEntry(): void
+    {
+        $transition = new NavigationTransition('/page');
+        $this->transitionLog->allows('getCursor')->andReturn(0);
+        $this->transitionLog->allows('getCount')->andReturn(1);
+        $this->transitionLog->expects()->consumeTransition($transition)->once();
+        $captured = null;
+        $this->cy->allows()->then(Mockery::on(function (callable $fn) use (&$captured): bool {
+            $captured = $fn;
+            return true;
+        }));
+
+        $this->automation->checkForUnexpectedTransition($transition);
+
+        ($captured)();
+    }
+
+    public function testCheckForUnexpectedTransitionThrowsOnUnexpectedEntry(): void
+    {
+        $transition = new NavigationTransition('/page');
+        $this->transitionLog->allows('getCursor')->andReturn(0);
+        $this->transitionLog->allows('getCount')->andReturn(1);
+        $this->transitionLog->allows('consumeTransition')->andThrow(
+            new UnexpectedTransitionException('Unexpected modal "my-modal" opening transition at cursor 0.')
+        );
+        $captured = null;
+        $this->cy->allows()->then(Mockery::on(function (callable $fn) use (&$captured): bool {
+            $captured = $fn;
+            return true;
+        }));
+
+        $this->automation->checkForUnexpectedTransition($transition);
+
+        $this->expectException(UnexpectedTransitionException::class);
+        $this->expectExceptionMessage('Unexpected modal "my-modal" opening transition');
+
+        ($captured)();
+    }
+
+    public function testWaitForTransitionEnqueuesCyWrapShould(): void
+    {
+        $transition = new NavigationTransition('/page');
+
+        $wrapChain = mock();
+        $wrapChain->expects()
+            ->should(Mockery::on(fn ($fn) => is_callable($fn)))
             ->once();
         $this->cy->expects()
-            ->url()
+            ->wrap(null)
             ->once()
-            ->andReturn($urlChain);
+            ->andReturn($wrapChain);
 
-        $this->automation->assertPage('/dashboard', $environment);
+        $this->automation->waitForTransition($transition);
+    }
+
+    public function testWaitForTransitionConsumesMatchingEntry(): void
+    {
+        $transition = new NavigationTransition('/page');
+        $this->transitionLog->allows('getCursor')->andReturn(0);
+        $this->transitionLog->allows('getCount')->andReturn(1);
+        $this->transitionLog->expects()->consumeTransition($transition)->once();
+        $captured = null;
+        $wrapChain = mock();
+        $wrapChain->allows()->should(Mockery::on(function (callable $fn) use (&$captured): bool {
+            $captured = $fn;
+            return true;
+        }));
+        $this->cy->allows()->wrap(null)->andReturn($wrapChain);
+
+        $this->automation->waitForTransition($transition);
+
+        ($captured)();
+    }
+
+    public function testWaitForTransitionThrowsWhenLogIsEmpty(): void
+    {
+        $transition = new NavigationTransition('/page');
+        $this->transitionLog->allows('getCursor')->andReturn(0);
+        $this->transitionLog->allows('getCount')->andReturn(0);
+        $this->transitionLog->allows('format')->andReturn('(empty)');
+        $captured = null;
+        $wrapChain = mock();
+        $wrapChain->allows()->should(Mockery::on(function (callable $fn) use (&$captured): bool {
+            $captured = $fn;
+            return true;
+        }));
+        $this->cy->allows()->wrap(null)->andReturn($wrapChain);
+
+        $this->automation->waitForTransition($transition);
+
+        $this->expectException(TransitionWaitTimeoutException::class);
+        $this->expectExceptionMessage('Waiting for navigation to "/page"');
+
+        ($captured)();
+    }
+
+    public function testWaitForTransitionThrowsOnUnexpectedEntry(): void
+    {
+        $transition = new NavigationTransition('/page');
+        $this->transitionLog->allows('getCursor')->andReturn(0);
+        $this->transitionLog->allows('getCount')->andReturn(1);
+        $this->transitionLog->allows('consumeTransition')->andThrow(
+            new TransitionWaitTimeoutException('Unexpected modal "my-modal" opening transition at cursor 0.')
+        );
+        $captured = null;
+        $wrapChain = mock();
+        $wrapChain->allows()->should(Mockery::on(function (callable $fn) use (&$captured): bool {
+            $captured = $fn;
+            return true;
+        }));
+        $this->cy->allows()->wrap(null)->andReturn($wrapChain);
+
+        $this->automation->waitForTransition($transition);
+
+        $this->expectException(TransitionWaitTimeoutException::class);
+        $this->expectExceptionMessage('Unexpected modal "my-modal" opening transition');
+
+        ($captured)();
+    }
+
+    public function testPushTransitionDelegatesToTransitionLog(): void
+    {
+        $transition = new NavigationTransition('/my-page');
+
+        $this->transitionLog->expects()
+            ->pushTransition($transition)
+            ->once();
+
+        $this->automation->pushTransition($transition);
+    }
+
+    public function testResolveReturnsTheContextsUnderlyingTarget(): void
+    {
+        $target = mock();
+        $context = new Context($target);
+
+        static::assertSame($target, $this->automation->resolve($context));
     }
 
     public function testGetAttributePrefixReturnsDefaultPrefix(): void
@@ -106,10 +323,13 @@ class CypressAutomationTest extends AbstractTestCase
     {
         $automation = new CypressAutomation(
             $this->fieldActionRegistry,
+            $this->fieldAssertionRegistry,
             $this->interactionRegistry,
             $this->regionAssertionRegistry,
             $this->stateAssertionRegistry,
+            $this->typeResolver,
             $this->cy,
+            $this->transitionLog,
             'my-app'
         );
 
@@ -136,13 +356,12 @@ class CypressAutomationTest extends AbstractTestCase
         $this->automation->performFieldAction($action);
     }
 
-    public function testPerformFieldActionCallsRegistryHandleFieldActionWithExplicitFieldType(): void
+    public function testPerformFieldActionCallsRegistryHandleFieldActionWithTypeFromTypeResolver(): void
     {
         $action = mock(FieldActionInterface::class);
         $action->allows('getFieldHandle')->andReturn('username');
         $getChain = mock();
         $field = mock();
-        $field->allows('attr')->with('data-ui-field-type')->andReturn('text');
 
         $getChain->expects()
             ->then(Mockery::on(function (callable $callback) use ($field): bool {
@@ -151,34 +370,12 @@ class CypressAutomationTest extends AbstractTestCase
             }))
             ->once();
         $this->cy->allows('get')->andReturn($getChain);
-
+        $this->typeResolver->expects()
+            ->resolveFieldType($field, 'username', 'ui')
+            ->once()
+            ->andReturn('text');
         $this->fieldActionRegistry->expects()
-            ->handleFieldAction('text', $action, $this->automation)
-            ->once();
-
-        $this->automation->performFieldAction($action);
-    }
-
-    public function testPerformFieldActionCallsRegistryHandleFieldActionForInputFieldType(): void
-    {
-        $action = mock(FieldActionInterface::class);
-        $action->allows('getFieldHandle')->andReturn('username');
-        $field = mock();
-        $field->allows('attr')->with('data-ui-field-type')->andReturn(null);
-        $field->allows('prop')->with('tagName')->andReturn('INPUT');
-        $field->allows('attr')->with('type')->andReturn('Text');
-        $getChain = mock();
-
-        $getChain->expects()
-            ->then(Mockery::on(function (callable $callback) use ($field): bool {
-                $callback($field);
-                return true;
-            }))
-            ->once();
-        $this->cy->allows('get')->andReturn($getChain);
-
-        $this->fieldActionRegistry->expects()
-            ->handleFieldAction('text', $action, $this->automation)
+            ->handleFieldAction('text', $action)
             ->once();
 
         $this->automation->performFieldAction($action);
@@ -188,10 +385,13 @@ class CypressAutomationTest extends AbstractTestCase
     {
         $automation = new CypressAutomation(
             $this->fieldActionRegistry,
+            $this->fieldAssertionRegistry,
             $this->interactionRegistry,
             $this->regionAssertionRegistry,
             $this->stateAssertionRegistry,
+            $this->typeResolver,
             $this->cy,
+            $this->transitionLog,
             'my-app'
         );
         $action = mock(FieldActionInterface::class);
@@ -221,35 +421,10 @@ class CypressAutomationTest extends AbstractTestCase
         $this->automation->performInteraction($interaction);
     }
 
-    public function testPerformInteractionCallsRegistryHandleInteractionWithExplicitInteractionType(): void
-    {
-        $interaction = new Enact('submit-button');
-
-        $element = mock();
-        $element->allows('attr')->with('data-ui-interaction-type')->andReturn('click');
-        $getChain = mock();
-
-        $getChain->expects()
-            ->then(Mockery::on(function (callable $callback) use ($element): bool {
-                $callback($element);
-                return true;
-            }))
-            ->once();
-        $this->cy->allows('get')->andReturn($getChain);
-
-        $this->interactionRegistry->expects()
-            ->handleInteraction('click', $interaction, $this->automation)
-            ->once();
-
-        $this->automation->performInteraction($interaction);
-    }
-
-    public function testPerformInteractionResolvesButtonTypeForButtonElement(): void
+    public function testPerformInteractionCallsRegistryHandleInteractionWithTypeFromTypeResolver(): void
     {
         $interaction = new Enact('submit-button');
         $element = mock();
-        $element->allows('attr')->with('data-ui-interaction-type')->andReturn(null);
-        $element->allows('prop')->with('tagName')->andReturn('BUTTON');
         $getChain = mock();
 
         $getChain->expects()
@@ -259,80 +434,12 @@ class CypressAutomationTest extends AbstractTestCase
             }))
             ->once();
         $this->cy->allows('get')->andReturn($getChain);
-
+        $this->typeResolver->expects()
+            ->resolveInteractionType($element, 'submit-button', 'ui')
+            ->once()
+            ->andReturn('button');
         $this->interactionRegistry->expects()
-            ->handleInteraction('button', $interaction, $this->automation)
-            ->once();
-
-        $this->automation->performInteraction($interaction);
-    }
-
-    public function testPerformInteractionResolvesHyperlinkTypeForAnchorElementWithHrefAttribute(): void
-    {
-        $interaction = new Enact('my-link');
-        $element = mock();
-        $element->allows('attr')->with('href')->andReturn('/my/url');
-        $element->allows('attr')->with('data-ui-interaction-type')->andReturn(null);
-        $element->allows('prop')->with('tagName')->andReturn('A');
-        $getChain = mock();
-        $this->cy->allows()
-            ->get('[data-ui-interaction="my-link"]')
-            ->andReturn($getChain);
-        $getChain->allows()
-            ->then(Mockery::on(function (callable $callback) use ($element): bool {
-                $callback($element);
-                return true;
-            }));
-
-        $this->interactionRegistry->expects()
-            ->handleInteraction('hyperlink', $interaction, $this->automation)
-            ->once();
-
-        $this->automation->performInteraction($interaction);
-    }
-
-    public function testPerformInteractionThrowsWhenGivenAnchorElementWithNoHrefAttributeNorExplicitTypeAttribute(): void
-    {
-        $interaction = new Enact('my-link');
-        $element = mock();
-        $element->allows('attr')->with('href')->andReturn(null);
-        $element->allows('attr')->with('data-ui-interaction-type')->andReturn(null);
-        $element->allows('prop')->with('tagName')->andReturn('A');
-        $getChain = mock();
-        $this->cy->allows()
-            ->get('[data-ui-interaction="my-link"]')
-            ->andReturn($getChain);
-        $getChain->allows()
-            ->then(Mockery::on(function (callable $callback) use ($element): bool {
-                $callback($element);
-                return true;
-            }));
-
-        $this->expectException(UnresolvableTypeException::class);
-        $this->expectExceptionMessage('No interaction type could be resolved for interaction with handle "my-link"');
-
-        $this->automation->performInteraction($interaction);
-    }
-
-    public function testPerformInteractionResolvesButtonTypeForInputButtonElement(): void
-    {
-        $interaction = new Enact('submit-input');
-        $element = mock();
-        $element->allows('attr')->with('data-ui-interaction-type')->andReturn(null);
-        $element->allows('prop')->with('tagName')->andReturn('INPUT');
-        $element->allows('attr')->with('type')->andReturn('button');
-        $getChain = mock();
-
-        $getChain->expects()
-            ->then(Mockery::on(function (callable $callback) use ($element): bool {
-                $callback($element);
-                return true;
-            }))
-            ->once();
-        $this->cy->allows('get')->andReturn($getChain);
-
-        $this->interactionRegistry->expects()
-            ->handleInteraction('button', $interaction, $this->automation)
+            ->handleInteraction('button', $interaction)
             ->once();
 
         $this->automation->performInteraction($interaction);
@@ -342,10 +449,13 @@ class CypressAutomationTest extends AbstractTestCase
     {
         $automation = new CypressAutomation(
             $this->fieldActionRegistry,
+            $this->fieldAssertionRegistry,
             $this->interactionRegistry,
             $this->regionAssertionRegistry,
             $this->stateAssertionRegistry,
+            $this->typeResolver,
             $this->cy,
+            $this->transitionLog,
             'my-app'
         );
         $interaction = new Enact('submit-button');
@@ -374,11 +484,10 @@ class CypressAutomationTest extends AbstractTestCase
         $this->automation->performRegionAssertion($assertion);
     }
 
-    public function testPerformRegionAssertionCallsRegistryWithExplicitRegionType(): void
+    public function testPerformRegionAssertionCallsRegistryWithTypeFromTypeResolver(): void
     {
         $assertion = new ExpectRegionContains('flash-message', 'Saved.');
         $element = mock();
-        $element->allows('attr')->with('data-ui-region-type')->andReturn('text');
         $getChain = mock();
 
         $getChain->expects()
@@ -388,31 +497,12 @@ class CypressAutomationTest extends AbstractTestCase
             }))
             ->once();
         $this->cy->allows('get')->andReturn($getChain);
-
+        $this->typeResolver->expects()
+            ->resolveRegionType($element, 'ui')
+            ->once()
+            ->andReturn('text');
         $this->regionAssertionRegistry->expects()
-            ->handleRegionAssertion('text', $assertion, $this->automation)
-            ->once();
-
-        $this->automation->performRegionAssertion($assertion);
-    }
-
-    public function testPerformRegionAssertionDefaultsRegionTypeToText(): void
-    {
-        $assertion = new ExpectRegionDoesNotContain('flash-message', 'Error.');
-        $element = mock();
-        $element->allows('attr')->with('data-ui-region-type')->andReturn(null);
-        $getChain = mock();
-
-        $getChain->expects()
-            ->then(Mockery::on(function (callable $callback) use ($element): bool {
-                $callback($element);
-                return true;
-            }))
-            ->once();
-        $this->cy->allows('get')->andReturn($getChain);
-
-        $this->regionAssertionRegistry->expects()
-            ->handleRegionAssertion('text', $assertion, $this->automation)
+            ->handleRegionAssertion('text', $assertion)
             ->once();
 
         $this->automation->performRegionAssertion($assertion);
@@ -422,10 +512,13 @@ class CypressAutomationTest extends AbstractTestCase
     {
         $automation = new CypressAutomation(
             $this->fieldActionRegistry,
+            $this->fieldAssertionRegistry,
             $this->interactionRegistry,
             $this->regionAssertionRegistry,
             $this->stateAssertionRegistry,
+            $this->typeResolver,
             $this->cy,
+            $this->transitionLog,
             'my-app'
         );
         $assertion = new ExpectRegionContains('flash-message', 'Saved.');
@@ -468,9 +561,8 @@ class CypressAutomationTest extends AbstractTestCase
             }))
             ->once();
         $this->cy->allows('get')->andReturn($getChain);
-
         $this->stateAssertionRegistry->expects()
-            ->handleStateAssertion('exists', $assertion, $this->automation)
+            ->handleStateAssertion('exists', $assertion)
             ->once();
 
         $this->automation->performStateAssertion($assertion);
@@ -490,9 +582,8 @@ class CypressAutomationTest extends AbstractTestCase
             }))
             ->once();
         $this->cy->allows('get')->andReturn($getChain);
-
         $this->stateAssertionRegistry->expects()
-            ->handleStateAssertion('exists', $assertion, $this->automation)
+            ->handleStateAssertion('exists', $assertion)
             ->once();
 
         $this->automation->performStateAssertion($assertion);
@@ -502,10 +593,13 @@ class CypressAutomationTest extends AbstractTestCase
     {
         $automation = new CypressAutomation(
             $this->fieldActionRegistry,
+            $this->fieldAssertionRegistry,
             $this->interactionRegistry,
             $this->regionAssertionRegistry,
             $this->stateAssertionRegistry,
+            $this->typeResolver,
             $this->cy,
+            $this->transitionLog,
             'my-app'
         );
         $assertion = new ExpectState('loading-spinner');
@@ -527,5 +621,71 @@ class CypressAutomationTest extends AbstractTestCase
             ->once();
 
         $this->automation->visitPage('https://example.com/login');
+    }
+
+    public function testPerformFieldAssertionCallsCyGetWithFieldHandleSelector(): void
+    {
+        $assertion = mock(FieldAssertionInterface::class);
+        $assertion->allows('getFieldHandle')->andReturn('username');
+        $getChain = mock();
+        $getChain->allows('then');
+
+        $this->cy->expects()
+            ->get('[data-ui-field="username"]')
+            ->once()
+            ->andReturn($getChain);
+
+        $this->automation->performFieldAssertion($assertion);
+    }
+
+    public function testPerformFieldAssertionCallsRegistryHandleFieldAssertionWithTypeFromTypeResolver(): void
+    {
+        $assertion = mock(FieldAssertionInterface::class);
+        $assertion->allows('getFieldHandle')->andReturn('username');
+        $field = mock();
+        $getChain = mock();
+
+        $getChain->expects()
+            ->then(Mockery::on(function (callable $callback) use ($field): bool {
+                $callback($field);
+                return true;
+            }))
+            ->once();
+        $this->cy->allows('get')->andReturn($getChain);
+        $this->typeResolver->expects()
+            ->resolveFieldType($field, 'username', 'ui')
+            ->once()
+            ->andReturn('email');
+        $this->fieldAssertionRegistry->expects()
+            ->handleFieldAssertion('email', $assertion)
+            ->once();
+
+        $this->automation->performFieldAssertion($assertion);
+    }
+
+    public function testPerformFieldAssertionUsesConfiguredAttributePrefix(): void
+    {
+        $automation = new CypressAutomation(
+            $this->fieldActionRegistry,
+            $this->fieldAssertionRegistry,
+            $this->interactionRegistry,
+            $this->regionAssertionRegistry,
+            $this->stateAssertionRegistry,
+            $this->typeResolver,
+            $this->cy,
+            $this->transitionLog,
+            'my-app'
+        );
+        $assertion = mock(FieldAssertionInterface::class);
+        $assertion->allows('getFieldHandle')->andReturn('username');
+        $getChain = mock();
+        $getChain->allows('then');
+
+        $this->cy->expects()
+            ->get('[data-my-app-field="username"]')
+            ->once()
+            ->andReturn($getChain);
+
+        $automation->performFieldAssertion($assertion);
     }
 }

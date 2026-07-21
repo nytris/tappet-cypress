@@ -3,7 +3,11 @@ includes:
 
 parameters:
     level: 6
+    bootstrapFiles:
+        - build/phpstan/stubs/bootstrap-functions.php
     paths:
         - src/
         - tests/
+        - uniter/bootstraps/
+        - uniter/env/composer/get_autoload_files.php
     tmpDir: var/phpstan/

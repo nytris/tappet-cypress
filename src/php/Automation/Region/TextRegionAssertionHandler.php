@@ -13,37 +13,41 @@ declare(strict_types=1);
 
 namespace Tappet\Cypress\Automation\Region;
 
-use Tappet\Core\Assertion\RegionAssertionInterface;
-use Tappet\Core\Automation\AutomationInterface;
-use Tappet\Core\Automation\Region\RegionAssertionHandlerInterface;
-use Tappet\Core\Standard\Assertion\ExpectRegionContains;
-use Tappet\Core\Standard\Assertion\ExpectRegionDoesNotContain;
-use Tappet\Cypress\Automation\CypressAutomation;
+use Tappet\Cypress\Automation\CypressAutomationInterface;
+use Tappet\Runner\Assertion\RegionAssertionInterface;
+use Tappet\Runner\Automation\Region\RegionAssertionHandlerInterface;
+use Tappet\Runner\Standard\Assertion\ExpectRegionContains;
+use Tappet\Runner\Standard\Assertion\ExpectRegionDoesNotContain;
 
 /**
  * Class TextRegionAssertionHandler.
  *
  * Handles assertions on text regions.
  *
+ * @implements RegionAssertionHandlerInterface<RegionAssertionInterface>
+ *
  * @author Dan Phillimore <dan@ovms.co>
  */
 class TextRegionAssertionHandler implements RegionAssertionHandlerInterface
 {
+    public function __construct(
+        private readonly CypressAutomationInterface $automation
+    ) {
+    }
+
     /**
      * @inheritDoc
      */
     public function getHandlers(): array
     {
         return [
-            ExpectRegionContains::class => function (RegionAssertionInterface $assertion, AutomationInterface $automation): void {
+            ExpectRegionContains::class => function (RegionAssertionInterface $assertion): void {
                 /** @var ExpectRegionContains $assertion */
-                /** @var CypressAutomation $automation */
-                $this->assertRegionContains($assertion, $automation);
+                $this->assertRegionContains($assertion);
             },
-            ExpectRegionDoesNotContain::class => function (RegionAssertionInterface $assertion, AutomationInterface $automation): void {
+            ExpectRegionDoesNotContain::class => function (RegionAssertionInterface $assertion): void {
                 /** @var ExpectRegionDoesNotContain $assertion */
-                /** @var CypressAutomation $automation */
-                $this->assertRegionDoesNotContain($assertion, $automation);
+                $this->assertRegionDoesNotContain($assertion);
             },
         ];
     }
@@ -51,10 +55,10 @@ class TextRegionAssertionHandler implements RegionAssertionHandlerInterface
     /**
      * Asserts that the specified text is contained in the region.
      */
-    public function assertRegionContains(ExpectRegionContains $assertion, CypressAutomation $automation): void
+    public function assertRegionContains(ExpectRegionContains $assertion): void
     {
-        $attributePrefix = $automation->getAttributePrefix();
-        $cy = $automation->getCy();
+        $attributePrefix = $this->automation->getAttributePrefix();
+        $cy = $this->automation->getCy();
 
         $cy->get('[data-' . $attributePrefix . '-region="' . $assertion->getRegionHandle() . '"]')->should('contain', $assertion->getText());
     }
@@ -62,10 +66,10 @@ class TextRegionAssertionHandler implements RegionAssertionHandlerInterface
     /**
      * Asserts that the specified text is not contained in the region.
      */
-    public function assertRegionDoesNotContain(ExpectRegionDoesNotContain $assertion, CypressAutomation $automation): void
+    public function assertRegionDoesNotContain(ExpectRegionDoesNotContain $assertion): void
     {
-        $attributePrefix = $automation->getAttributePrefix();
-        $cy = $automation->getCy();
+        $attributePrefix = $this->automation->getAttributePrefix();
+        $cy = $this->automation->getCy();
 
         $cy->get('[data-' . $attributePrefix . '-region="' . $assertion->getRegionHandle() . '"]')->should('not.contain', $assertion->getText());
     }

@@ -13,43 +13,83 @@ declare(strict_types=1);
 
 namespace Tappet\Cypress\Automation\Interaction;
 
-use Tappet\Core\Action\InteractionInterface;
-use Tappet\Core\Automation\AutomationInterface;
-use Tappet\Core\Automation\Interaction\InteractionHandlerInterface;
-use Tappet\Core\Standard\Action\Enact;
-use Tappet\Cypress\Automation\CypressAutomation;
+use Tappet\Cypress\Automation\CypressAutomationInterface;
+use Tappet\Runner\Action\InteractionInterface;
+use Tappet\Runner\Automation\Interaction\InteractionHandlerInterface;
+use Tappet\Runner\Standard\Action\DoubleClick;
+use Tappet\Runner\Standard\Action\Enact;
+use Tappet\Runner\Standard\Action\Hover;
 
 /**
  * Class ButtonInteractionHandler.
  *
  * Handles interactions with buttons.
  *
+ * @implements InteractionHandlerInterface<InteractionInterface>
+ *
  * @author Dan Phillimore <dan@ovms.co>
  */
 class ButtonInteractionHandler implements InteractionHandlerInterface
 {
+    public function __construct(
+        private readonly CypressAutomationInterface $automation
+    ) {
+    }
+
     /**
      * @inheritDoc
      */
     public function getHandlers(): array
     {
         return [
-            Enact::class => function (InteractionInterface $interaction, AutomationInterface $automation): void {
+            DoubleClick::class => function (InteractionInterface $interaction): void {
+                /** @var DoubleClick $interaction */
+                $this->doubleClickButton($interaction);
+            },
+            Enact::class => function (InteractionInterface $interaction): void {
                 /** @var Enact $interaction */
-                /** @var CypressAutomation $automation */
-                $this->pressButton($interaction, $automation);
+                $this->pressButton($interaction);
+            },
+            Hover::class => function (InteractionInterface $interaction): void {
+                /** @var Hover $interaction */
+                $this->hoverButton($interaction);
             },
         ];
     }
 
     /**
+     * Double-clicks the button.
+     */
+    public function doubleClickButton(DoubleClick $interaction): void
+    {
+        $attributePrefix = $this->automation->getAttributePrefix();
+        $cy = $this->automation->getCy();
+
+        $cy->get('[data-' . $attributePrefix . '-interaction="' . $interaction->getInteractionHandle() . '"]')
+            ->dblclick();
+    }
+
+    /**
+     * Hovers over the button.
+     */
+    public function hoverButton(Hover $interaction): void
+    {
+        $attributePrefix = $this->automation->getAttributePrefix();
+        $cy = $this->automation->getCy();
+
+        $cy->get('[data-' . $attributePrefix . '-interaction="' . $interaction->getInteractionHandle() . '"]')
+            ->trigger('mouseover');
+    }
+
+    /**
      * Presses the button.
      */
-    public function pressButton(Enact $interaction, CypressAutomation $automation): void
+    public function pressButton(Enact $interaction): void
     {
-        $attributePrefix = $automation->getAttributePrefix();
-        $cy = $automation->getCy();
+        $attributePrefix = $this->automation->getAttributePrefix();
+        $cy = $this->automation->getCy();
 
-        $cy->get('[data-' . $attributePrefix . '-interaction="' . $interaction->getInteractionHandle() . '"]')->click();
+        $cy->get('[data-' . $attributePrefix . '-interaction="' . $interaction->getInteractionHandle() . '"]')
+            ->click();
     }
 }

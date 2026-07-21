@@ -13,9 +13,9 @@ declare(strict_types=1);
 
 namespace Tappet\Cypress\Tests\Functional\Fixtures\MyTestApp\test\app\Arrangement;
 
-use Tappet\Core\Arrangement\ArrangementInterface;
-use Tappet\Core\Environment\EnvironmentInterface;
 use Tappet\Cypress\Tests\Functional\Fixtures\MyTestApp\test\app\Fixture\UserModel;
+use Tappet\Runner\Arrangement\ArrangementInterface;
+use Tappet\Runner\Environment\EnvironmentInterface;
 
 class LogInAs implements ArrangementInterface
 {
@@ -33,6 +33,6 @@ class LogInAs implements ArrangementInterface
     {
         $userId = $environment->getFixtureModel(UserModel::class, $this->handle)->getId();
 
-        $environment->visitPage('/_tappet/auth/login/' . $userId);
+        $environment->visitUrl('/_tappet/auth/login/' . $userId);
     }
 }

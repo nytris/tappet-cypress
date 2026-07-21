@@ -13,31 +13,36 @@ declare(strict_types=1);
 
 namespace Tappet\Cypress\Automation\State;
 
-use Tappet\Core\Assertion\StateAssertionInterface;
-use Tappet\Core\Automation\AutomationInterface;
-use Tappet\Core\Automation\State\StateAssertionHandlerInterface;
-use Tappet\Core\Standard\Assertion\ExpectState;
-use Tappet\Cypress\Automation\CypressAutomation;
+use Tappet\Cypress\Automation\CypressAutomationInterface;
+use Tappet\Runner\Assertion\StateAssertionInterface;
+use Tappet\Runner\Automation\State\StateAssertionHandlerInterface;
+use Tappet\Runner\Standard\Assertion\ExpectState;
 
 /**
  * Class ExistsStateAssertionHandler.
  *
  * Handles assertions on state.
  *
+ * @implements StateAssertionHandlerInterface<StateAssertionInterface>
+ *
  * @author Dan Phillimore <dan@ovms.co>
  */
 class ExistsStateAssertionHandler implements StateAssertionHandlerInterface
 {
+    public function __construct(
+        private readonly CypressAutomationInterface $automation
+    ) {
+    }
+
     /**
      * @inheritDoc
      */
     public function getHandlers(): array
     {
         return [
-            ExpectState::class => function (StateAssertionInterface $assertion, AutomationInterface $automation): void {
+            ExpectState::class => function (StateAssertionInterface $assertion): void {
                 /** @var ExpectState $assertion */
-                /** @var CypressAutomation $automation */
-                $this->assertStateExists($assertion, $automation);
+                $this->assertStateExists($assertion);
             },
         ];
     }
@@ -45,10 +50,10 @@ class ExistsStateAssertionHandler implements StateAssertionHandlerInterface
     /**
      * Asserts that the specified state exists.
      */
-    public function assertStateExists(ExpectState $assertion, CypressAutomation $automation): void
+    public function assertStateExists(ExpectState $assertion): void
     {
-        $attributePrefix = $automation->getAttributePrefix();
-        $cy = $automation->getCy();
+        $attributePrefix = $this->automation->getAttributePrefix();
+        $cy = $this->automation->getCy();
 
         $cy->get('[data-' . $attributePrefix . '-state="' . $assertion->getStateHandle() . '"]')->should('exist');
     }

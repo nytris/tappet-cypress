@@ -106,8 +106,8 @@ class CypressFunctionalTest extends AbstractFunctionalTestCase
                 $allOutput,
             ),
         );
-        // Both scenarios should run and pass because the module description matches the filter.
-        static::assertStringContainsString('2 passing', $allOutput);
+        // All five scenarios should run and pass because the module description matches the filter.
+        static::assertStringContainsString('5 passing', $allOutput);
         static::assertStringNotContainsString('pending', $allOutput);
     }
 
@@ -140,8 +140,8 @@ class CypressFunctionalTest extends AbstractFunctionalTestCase
         );
         // Only the scenario whose description matches the filter should run.
         static::assertStringContainsString('1 passing', $allOutput);
-        // The non-matching scenario should be registered as skipped (pending).
-        static::assertStringContainsString('1 pending', $allOutput);
+        // The four non-matching scenarios should be registered as skipped (pending).
+        static::assertStringContainsString('4 pending', $allOutput);
     }
 
     public function testCypressSkipsAllScenariosWhenFilterMatchesNeither(): void
@@ -171,8 +171,140 @@ class CypressFunctionalTest extends AbstractFunctionalTestCase
                 $allOutput,
             ),
         );
-        // Both scenarios should be skipped (pending) since nothing matches the filter.
-        static::assertStringContainsString('2 pending', $allOutput);
+        // All five scenarios should be skipped (pending) since nothing matches the filter.
+        static::assertStringContainsString('5 pending', $allOutput);
+    }
+
+    public function testCypressFailsWhenPageNavigatesUnexpectedlyDuringActStage(): void
+    {
+        $packageRoot = dirname(__DIR__, 2);
+        $cypressProjectDir = $packageRoot . '/tests/Functional/Fixtures/MyTestApp/test';
+
+        // The failure spec navigates away from the edit page (via the cancel interaction) without
+        // declaring a new expected page with ExpectNewPage or Visit. The subsequent Type action
+        // triggers an assertCurrentPage() which fails because the browser is on the user list
+        // page, not the edit page that was set as the current page by OpenPage.
+        //
+        // The failure spec lives in failure-spec/ (not spec/) so that the normal "all specs passed"
+        // test run does not include it. We override specPattern here to run only the failure specs.
+        $command = sprintf(
+            '%s/node_modules/.bin/cypress run --project %s --config baseUrl=%s,specPattern=failure-spec/unexpected_navigation.spec.php --env tappetApiBaseUrl=%s 2>&1',
+            escapeshellarg($packageRoot),
+            escapeshellarg($cypressProjectDir),
+            'http://localhost:' . $this->webServerPort,
+            'http://localhost:' . $this->webServerPort,
+        );
+
+        $output = [];
+        $exitCode = 0;
+        exec($command, $output, $exitCode);
+        $allOutput = implode("\n", $output);
+
+        static::assertNotSame(
+            0,
+            $exitCode,
+            sprintf(
+                "Cypress should have exited with a non-zero code (test was expected to fail).\nOutput:\n%s",
+                $allOutput,
+            ),
+        );
+        static::assertStringContainsString('unexpected_navigation.spec.php', $allOutput);
+        static::assertStringContainsString('1 failing', $allOutput);
+    }
+
+    public function testCypressFailsWhenModalOpensUnexpectedly(): void
+    {
+        $packageRoot = dirname(__DIR__, 2);
+        $cypressProjectDir = $packageRoot . '/tests/Functional/Fixtures/MyTestApp/test';
+
+        $command = sprintf(
+            '%s/node_modules/.bin/cypress run --project %s --config baseUrl=%s,specPattern=failure-spec/modal_opens_unexpectedly.spec.php --env tappetApiBaseUrl=%s,tappetSuite=my-suite 2>&1',
+            escapeshellarg($packageRoot),
+            escapeshellarg($cypressProjectDir),
+            'http://localhost:' . $this->webServerPort,
+            'http://localhost:' . $this->webServerPort,
+        );
+
+        $output = [];
+        $exitCode = 0;
+        exec($command, $output, $exitCode);
+        $allOutput = implode("\n", $output);
+
+        static::assertNotSame(
+            0,
+            $exitCode,
+            sprintf(
+                "Cypress should have exited with a non-zero code (test was expected to fail).\nOutput:\n%s",
+                $allOutput,
+            ),
+        );
+        static::assertStringContainsString('modal_opens_unexpectedly.spec.php', $allOutput);
+        static::assertStringContainsString('Expected transition log to be empty', $allOutput);
+        static::assertStringContainsString('modal "add-user" opening', $allOutput);
+        static::assertStringContainsString('1 failing', $allOutput);
+    }
+
+    public function testCypressFailsWhenExpectedModalOpenTransitionIsNeverDetected(): void
+    {
+        $packageRoot = dirname(__DIR__, 2);
+        $cypressProjectDir = $packageRoot . '/tests/Functional/Fixtures/MyTestApp/test';
+
+        $command = sprintf(
+            '%s/node_modules/.bin/cypress run --project %s --config baseUrl=%s,specPattern=failure-spec/modal_open_transition_not_detected.spec.php --env tappetApiBaseUrl=%s,tappetSuite=my-suite 2>&1',
+            escapeshellarg($packageRoot),
+            escapeshellarg($cypressProjectDir),
+            'http://localhost:' . $this->webServerPort,
+            'http://localhost:' . $this->webServerPort,
+        );
+
+        $output = [];
+        $exitCode = 0;
+        exec($command, $output, $exitCode);
+        $allOutput = implode("\n", $output);
+
+        static::assertNotSame(
+            0,
+            $exitCode,
+            sprintf(
+                "Cypress should have exited with a non-zero code (test was expected to fail).\nOutput:\n%s",
+                $allOutput,
+            ),
+        );
+        static::assertStringContainsString('modal_open_transition_not_detected.spec.php', $allOutput);
+        static::assertStringContainsString('Waiting for modal "add-user" opening', $allOutput);
+        static::assertStringContainsString('1 failing', $allOutput);
+    }
+
+    public function testCypressFailsWhenModalClosesUnexpectedly(): void
+    {
+        $packageRoot = dirname(__DIR__, 2);
+        $cypressProjectDir = $packageRoot . '/tests/Functional/Fixtures/MyTestApp/test';
+
+        $command = sprintf(
+            '%s/node_modules/.bin/cypress run --project %s --config baseUrl=%s,specPattern=failure-spec/modal_closes_unexpectedly.spec.php --env tappetApiBaseUrl=%s,tappetSuite=my-suite 2>&1',
+            escapeshellarg($packageRoot),
+            escapeshellarg($cypressProjectDir),
+            'http://localhost:' . $this->webServerPort,
+            'http://localhost:' . $this->webServerPort,
+        );
+
+        $output = [];
+        $exitCode = 0;
+        exec($command, $output, $exitCode);
+        $allOutput = implode("\n", $output);
+
+        static::assertNotSame(
+            0,
+            $exitCode,
+            sprintf(
+                "Cypress should have exited with a non-zero code (test was expected to fail).\nOutput:\n%s",
+                $allOutput,
+            ),
+        );
+        static::assertStringContainsString('modal_closes_unexpectedly.spec.php', $allOutput);
+        static::assertStringContainsString('Expected transition log to be empty', $allOutput);
+        static::assertStringContainsString('modal "add-user" closing', $allOutput);
+        static::assertStringContainsString('1 failing', $allOutput);
     }
 
     public function testCypressPassesAllSpecsWhenRunViaTappetBinary(): void
@@ -206,8 +338,24 @@ class CypressFunctionalTest extends AbstractFunctionalTestCase
         static::assertStringNotContainsString(' 0 passing', $allOutput);
     }
 
+    /**
+     * Deletes the fixture app's PHP session file (fixed session ID "tappet-test", shared across the
+     * cookie-less cy.task(...) HTTP calls - see web/index.php) so that state from a previous run of this
+     * test suite (e.g. previously loaded users) cannot leak into this run's assertions.
+     */
+    private function clearStaleSession(): void
+    {
+        $sessionFile = (session_save_path() ?: sys_get_temp_dir()) . '/sess_tappet-test';
+
+        if (file_exists($sessionFile)) {
+            unlink($sessionFile);
+        }
+    }
+
     private function startWebServer(): void
     {
+        $this->clearStaleSession();
+
         $packageRoot = dirname(__DIR__, 2);
         $docRoot = $packageRoot . '/tests/Functional/Fixtures/MyTestApp/web';
         $router = $docRoot . '/index.php';

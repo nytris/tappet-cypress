@@ -13,8 +13,8 @@ declare(strict_types=1);
 
 namespace Tappet\Cypress\Tests\Functional\Fixtures\MyTestApp\test\app\Page;
 
-use Tappet\Core\Environment\EnvironmentInterface;
-use Tappet\Core\Page\PageInterface;
+use Tappet\Runner\Environment\EnvironmentInterface;
+use Tappet\Runner\Page\PageInterface;
 
 class LoginPage implements PageInterface
 {

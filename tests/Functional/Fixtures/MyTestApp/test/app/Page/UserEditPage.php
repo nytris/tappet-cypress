@@ -13,9 +13,9 @@ declare(strict_types=1);
 
 namespace Tappet\Cypress\Tests\Functional\Fixtures\MyTestApp\test\app\Page;
 
-use Tappet\Core\Environment\EnvironmentInterface;
-use Tappet\Core\Page\PageInterface;
 use Tappet\Cypress\Tests\Functional\Fixtures\MyTestApp\test\app\Fixture\UserModel;
+use Tappet\Runner\Environment\EnvironmentInterface;
+use Tappet\Runner\Page\PageInterface;
 
 class UserEditPage implements PageInterface
 {

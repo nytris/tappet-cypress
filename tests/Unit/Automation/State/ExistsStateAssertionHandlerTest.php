@@ -14,10 +14,10 @@ declare(strict_types=1);
 namespace Tappet\Cypress\Tests\Unit\Automation\State;
 
 use Mockery\MockInterface;
-use Tappet\Core\Standard\Assertion\ExpectState;
-use Tappet\Cypress\Automation\CypressAutomation;
+use Tappet\Cypress\Automation\CypressAutomationInterface;
 use Tappet\Cypress\Automation\State\ExistsStateAssertionHandler;
 use Tappet\Cypress\Tests\AbstractTestCase;
+use Tappet\Runner\Standard\Assertion\ExpectState;
 
 /**
  * Class ExistsStateAssertionHandlerTest.
@@ -26,9 +26,11 @@ use Tappet\Cypress\Tests\AbstractTestCase;
  */
 class ExistsStateAssertionHandlerTest extends AbstractTestCase
 {
-    // $cy is a Uniter FFI wrapper of Cypress's cy global; stub as an anonymous mock.
+    /**
+     * A Uniter FFI wrapper of Cypress's cy global, stubbed as an anonymous mock.
+     */
     private mixed $cy;
-    private CypressAutomation&MockInterface $automation;
+    private CypressAutomationInterface&MockInterface $automation;
     private ExistsStateAssertionHandler $handler;
 
     public function setUp(): void
@@ -36,12 +38,12 @@ class ExistsStateAssertionHandlerTest extends AbstractTestCase
         parent::setUp();
 
         $this->cy = mock();
-        $this->automation = mock(CypressAutomation::class, [
+        $this->automation = mock(CypressAutomationInterface::class, [
             'getCy' => $this->cy,
             'getAttributePrefix' => 'ui',
         ]);
 
-        $this->handler = new ExistsStateAssertionHandler();
+        $this->handler = new ExistsStateAssertionHandler($this->automation);
     }
 
     public function testGetHandlersMapsExpectStateClassToCallable(): void
@@ -65,16 +67,17 @@ class ExistsStateAssertionHandlerTest extends AbstractTestCase
             ->once()
             ->andReturn($getChain);
 
-        $this->handler->getHandlers()[ExpectState::class]($assertion, $this->automation);
+        $this->handler->getHandlers()[ExpectState::class]($assertion);
     }
 
     public function testAssertStateExistsUsesConfiguredAttributePrefix(): void
     {
         $assertion = new ExpectState('import-pending');
-        $automation = mock(CypressAutomation::class, [
+        $automation = mock(CypressAutomationInterface::class, [
             'getCy' => $this->cy,
             'getAttributePrefix' => 'my-app',
         ]);
+        $handler = new ExistsStateAssertionHandler($automation);
         $getChain = mock();
 
         $getChain->expects()
@@ -85,6 +88,6 @@ class ExistsStateAssertionHandlerTest extends AbstractTestCase
             ->once()
             ->andReturn($getChain);
 
-        $this->handler->getHandlers()[ExpectState::class]($assertion, $automation);
+        $handler->getHandlers()[ExpectState::class]($assertion);
     }
 }

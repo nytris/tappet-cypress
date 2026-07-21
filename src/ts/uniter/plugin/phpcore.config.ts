@@ -32,6 +32,13 @@ export interface UniterAddon {
 }
 
 /**
+ * Proxy interface for the PHP-land TransitionLog object received via tappet_init_transition_log().
+ */
+interface TransitionLogProxy {
+    reset(): Promise<void>;
+}
+
+/**
  * The PHPCore addon configuration for Tappet Cypress.
  *
  * Registers coercing functions that bridge between PHP (transpiled via Uniter)
@@ -42,13 +49,33 @@ export const addons: UniterAddon[] = [
         initialiserGroups: [
             ({ environment }: { environment: UniterEnvironment }): void => {
                 const cypressWindow = window as unknown as Window & {
+                    beforeEach: (fn: () => void) => void;
                     cy: {
+                        task(
+                            name: string,
+                            payload?: unknown,
+                        ): {
+                            then<TResult>(
+                                onFulfilled: (result: TResult) => unknown,
+                                onRejected?: (error: unknown) => unknown,
+                            ): unknown;
+                        };
                         then(fn: () => unknown): unknown;
+                        visit(url: string): unknown;
+                        wrap(value: unknown): {
+                            should(fn: (value: unknown) => void): unknown;
+                        };
                     };
                     Cypress: {
-                        config(name: string): unknown;
+                        config(name: string, value?: unknown): unknown;
                         env(name: string): unknown;
+                        isCy(value: unknown): boolean;
+                        on(
+                            event: string,
+                            fn: (...args: unknown[]) => void,
+                        ): void;
                     };
+                    Error: typeof Error;
                     describe(name: string, fn: () => void): void;
                     expect: unknown;
                     it: {
@@ -57,23 +84,40 @@ export const addons: UniterAddon[] = [
                     };
                 };
 
-                const { describe, it, cy, Cypress, fetch } = cypressWindow;
+                const { beforeEach, describe, it, cy, Cypress } = cypressWindow;
 
-                const apiBaseUrl = Cypress.env('tappetApiBaseUrl');
+                cypressWindow.Error.stackTraceLimit = 50;
 
-                if (!apiBaseUrl) {
-                    throw new Error(
-                        'Tappet Cypress: Cypress environment variable "tappetApiBaseUrl" not set',
-                    );
-                }
+                /*
+                 * Storage of the current API base URL lives Node-side (see cypress/plugin/index.ts),
+                 * alongside the fixture caches, so that it survives cases where this spec's own JS
+                 * state doesn't (e.g. a fresh page load after the AUT is re-hosted under a
+                 * fixture-generated subdomain). tappet_get_fixture_api_base_url()/
+                 * tappet_set_fixture_api_base_url() are only ever called lazily, once a Cypress
+                 * command queue is guaranteed to already exist - see ProxyConfiguration's use in
+                 * uniter/bootstraps/bootstrap.php, which defers calling either of these until
+                 * Configuration::getApiBaseUrl()/setApiBaseUrl() is actually invoked (e.g. while
+                 * loading a fixture), rather than eagerly at bootstrap time.
+                 */
+                environment.defineCoercingFunction(
+                    'tappet_get_fixture_api_base_url',
+                    async () => {
+                        return await new Promise((resolve) => {
+                            cy.task('tappetCypressGetApiBaseUrl').then(resolve);
+                        });
+                    },
+                );
 
-                const apiKey = Cypress.env('tappetApiKey');
-
-                if (!apiKey) {
-                    throw new Error(
-                        'Tappet Cypress: Cypress environment variable "tappetApiKey" not set',
-                    );
-                }
+                environment.defineCoercingFunction(
+                    'tappet_set_fixture_api_base_url',
+                    async (baseUrl) => {
+                        await new Promise((resolve) => {
+                            cy.task('tappetCypressSetApiBaseUrl', {
+                                baseUrl,
+                            }).then(resolve);
+                        });
+                    },
+                );
 
                 environment.defineCoercingFunction(
                     'tappet_get_base_url',
@@ -83,6 +127,78 @@ export const addons: UniterAddon[] = [
                 );
 
                 environment.defineCoercingFunction(
+                    'tappet_set_base_url',
+                    (baseUrl) => {
+                        Cypress.config('baseUrl', baseUrl);
+                    },
+                );
+
+                /*
+                 * Break the deadlock between Cypress' command queue and Promise resolution:
+                 * a cy.then(...) callback that returns a pending Promise blocks the command
+                 * queue until that Promise settles, but if the Promise's resolution itself
+                 * depends on further Cypress commands (e.g. enqueued by a PHP coroutine that
+                 * paused mid-callback), those commands are stuck behind the very .then(...)
+                 * that's waiting on them - a deadlock. So instead of returning the pending
+                 * Promise directly, poll its settlement via a chain of small, bounded
+                 * cy.then(...) commands, each of which returns immediately - leaving room in
+                 * the queue for anything enqueued asynchronously in between polls to run.
+                 */
+                const addToCypressCommandQueueAllowingReentry = (
+                    callback: () => unknown,
+                ) => {
+                    cy.then(() => {
+                        const result: unknown | Promise<unknown> = callback();
+
+                        if (
+                            !result ||
+                            typeof (result as Promise<unknown>).then !==
+                                'function' ||
+                            Cypress.isCy(result)
+                        ) {
+                            return result;
+                        }
+
+                        let isSettled = false;
+                        let returnValue: unknown | null = null;
+                        let thrownError: Error | null = null;
+
+                        (result as Promise<unknown>).then(
+                            (result) => {
+                                isSettled = true;
+                                returnValue = result;
+                            },
+                            (error) => {
+                                isSettled = true;
+                                thrownError = error;
+                            },
+                        );
+
+                        const check = () => {
+                            if (!isSettled) {
+                                cy.then(async () => {
+                                    await new Promise((resolve) => {
+                                        setTimeout(resolve, 1);
+                                    });
+
+                                    await check();
+                                });
+
+                                return;
+                            }
+
+                            if (thrownError) {
+                                throw thrownError;
+                            }
+
+                            return returnValue;
+                        };
+
+                        cy.then(check);
+                    });
+                };
+
+                environment.defineCoercingFunction(
                     'tappet_get_fixture_api',
                     () => {
                         return {
@@ -90,50 +206,24 @@ export const addons: UniterAddon[] = [
                                 fixtureClass: string,
                                 fixturePayload: string,
                             ): Promise<string> => {
-                                const response = await fetch(
-                                    apiBaseUrl +
-                                        '/.well-known/tappet/fixture/' +
-                                        fixtureClass.replace(/\\/g, '--'),
-                                    {
-                                        method: 'POST',
-                                        headers: {
-                                            Authorization: `Bearer ${apiKey}`,
-                                            'Content-Type': 'application/json',
-                                        },
-                                        // JSON-encode the fixture serialisation payload,
-                                        // as it may contain special characters.
-                                        body: JSON.stringify({
-                                            serialisation: fixturePayload,
-                                        }),
-                                    },
-                                );
-
-                                // Response fixture model's serialisation payload will be JSON-encoded
-                                // to support special characters.
-                                return (await response.json()).serialisation;
+                                return await new Promise((resolve) => {
+                                    cy.task('tappetCypressLoadFixture', {
+                                        fixtureClass,
+                                        fixturePayload,
+                                    }).then(resolve);
+                                });
                             },
                             loadMultipleFixtures: async (
                                 fixturesPayload: string,
                             ): Promise<string> => {
-                                const response = await fetch(
-                                    apiBaseUrl + '/.well-known/tappet/fixtures',
-                                    {
-                                        method: 'POST',
-                                        headers: {
-                                            Authorization: `Bearer ${apiKey}`,
-                                            'Content-Type': 'application/json',
+                                return await new Promise((resolve) => {
+                                    cy.task(
+                                        'tappetCypressLoadMultipleFixtures',
+                                        {
+                                            fixturesPayload,
                                         },
-                                        // JSON-encode the fixture serialisation payload,
-                                        // as it may contain special characters.
-                                        body: JSON.stringify({
-                                            serialisation: fixturesPayload,
-                                        }),
-                                    },
-                                );
-
-                                // Response fixture models' serialisation payload will be JSON-encoded
-                                // to support special characters.
-                                return (await response.json()).serialisation;
+                                    ).then(resolve);
+                                });
                             },
                             purge: async (
                                 modelsToPurge: {
@@ -141,16 +231,11 @@ export const addons: UniterAddon[] = [
                                     model: string;
                                 }[],
                             ) => {
-                                await fetch(
-                                    apiBaseUrl + '/.well-known/tappet/fixtures',
-                                    {
-                                        method: 'DELETE',
-                                        headers: {
-                                            Authorization: `Bearer ${apiKey}`,
-                                        },
-                                        body: JSON.stringify(modelsToPurge),
-                                    },
-                                );
+                                await new Promise((resolve) => {
+                                    cy.task('tappetCypressPurgeFixtures', {
+                                        modelsToPurge,
+                                    }).then(resolve);
+                                });
                             },
                         };
                     },
@@ -164,9 +249,7 @@ export const addons: UniterAddon[] = [
                 );
 
                 const filterString = Cypress.env('tappetFilter') as
-                    | string
-                    | null
-                    | undefined;
+                    string | null | undefined;
                 const filterRegex = filterString
                     ? new RegExp(filterString)
                     : null;
@@ -206,14 +289,18 @@ export const addons: UniterAddon[] = [
 
                             describe(moduleDescription, () => {
                                 beforeEach(() => {
-                                    // TODO: scenario.beforeEach()?
-                                    // Perform cleanup inside Mocha beforeEach so that it happens regardless of errors.
-                                    cy.then(() =>
-                                        (
-                                            modelRepository as {
-                                                purge(): unknown;
-                                            }
-                                        ).purge(),
+                                    // Reset the PHP-land transition log before each test.
+                                    addToCypressCommandQueueAllowingReentry(
+                                        async () => {
+                                            await transitionLog?.reset();
+
+                                            // Perform cleanup inside Mocha beforeEach so that it happens regardless of errors.
+                                            await (
+                                                modelRepository as {
+                                                    purge(): unknown;
+                                                }
+                                            ).purge();
+                                        },
                                     );
                                 });
 
@@ -228,8 +315,8 @@ export const addons: UniterAddon[] = [
                                     (scenarioMatchesFilter ? it : it.skip)(
                                         description,
                                         () => {
-                                            return cy.then(() =>
-                                                scenario.perform(),
+                                            addToCypressCommandQueueAllowingReentry(
+                                                () => scenario.perform(),
                                             );
                                         },
                                     );
@@ -265,6 +352,58 @@ export const addons: UniterAddon[] = [
                     'tappet_get_suite_name',
                     () => {
                         return suiteName;
+                    },
+                );
+
+                // PHP-land TransitionLog instance, set via tappet_init_transition_log().
+                let transitionLog: TransitionLogProxy | null = null;
+
+                // Handlers called before each AUT window loads, registered via PHP bootstrap.
+                const windowBeforeLoadHandlers: ((win: Window) => void)[] = [];
+
+                // Handlers called when each AUT window fully loads, registered via PHP bootstrap.
+                const windowLoadHandlers: ((win: Window) => void)[] = [];
+
+                // Invoke PHP-land window before-load handlers before each new AUT window load.
+                Cypress.on('window:before:load', (win) => {
+                    const autWindow = win as Window & typeof globalThis;
+
+                    windowBeforeLoadHandlers.forEach((handler) =>
+                        handler(autWindow),
+                    );
+                });
+
+                // Invoke PHP-land window load handlers whenever the AUT window fully loads.
+                Cypress.on('window:load', (win) => {
+                    const autWindow = win as Window & typeof globalThis;
+
+                    windowLoadHandlers.forEach((handler) => handler(autWindow));
+                });
+
+                environment.defineCoercingFunction(
+                    'tappet_add_window_beforeload_handler',
+                    (handler) => {
+                        windowBeforeLoadHandlers.push(
+                            handler as (win: Window) => void,
+                        );
+                    },
+                );
+
+                environment.defineCoercingFunction(
+                    'tappet_add_window_load_handler',
+                    (handler) => {
+                        windowLoadHandlers.push(
+                            handler as (win: Window) => void,
+                        );
+                    },
+                );
+
+                // Receives the PHP-land TransitionLog instance so that the beforeEach() handler
+                // can call reset() on it before each test.
+                environment.defineCoercingFunction(
+                    'tappet_init_transition_log',
+                    (log) => {
+                        transitionLog = log as TransitionLogProxy;
                     },
                 );
             },

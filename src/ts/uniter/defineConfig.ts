@@ -13,6 +13,8 @@ import path from 'path';
 import dotPhpFactoryImport = require('dotphp');
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 import phpEvalPlugin = require('phpruntime/src/plugin/eval');
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+import phpPcrePlugin = require('phpruntime/src/plugin/pcre/basicSupport');
 
 export interface DefineConfigOptions {
     bootstraps?: string[];
@@ -97,6 +99,8 @@ export function defineConfig(
         plugins: [
             // Install PHP eval(...) support.
             phpEvalPlugin,
+            // Install PCRE support using PCREmu.
+            phpPcrePlugin,
 
             uniterPlugin,
         ],
@@ -118,7 +122,7 @@ export function defineConfig(
                 include: [
                     'vendor/composer/**/*.php',
                     '!vendor/composer/pcre/**',
-                    'vendor/tappet/tappet/src/{Core,Suite}/**/*.php',
+                    'vendor/tappet/tappet/src/{Common,Runner,Suite}/**/*.php',
                     'vendor/tappet/cypress/src/php/**/*.php',
 
                     ...include,

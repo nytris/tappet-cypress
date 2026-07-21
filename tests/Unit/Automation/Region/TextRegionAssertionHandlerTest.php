@@ -14,11 +14,11 @@ declare(strict_types=1);
 namespace Tappet\Cypress\Tests\Unit\Automation\Region;
 
 use Mockery\MockInterface;
-use Tappet\Core\Standard\Assertion\ExpectRegionContains;
-use Tappet\Core\Standard\Assertion\ExpectRegionDoesNotContain;
-use Tappet\Cypress\Automation\CypressAutomation;
+use Tappet\Cypress\Automation\CypressAutomationInterface;
 use Tappet\Cypress\Automation\Region\TextRegionAssertionHandler;
 use Tappet\Cypress\Tests\AbstractTestCase;
+use Tappet\Runner\Standard\Assertion\ExpectRegionContains;
+use Tappet\Runner\Standard\Assertion\ExpectRegionDoesNotContain;
 
 /**
  * Class TextRegionAssertionHandlerTest.
@@ -27,9 +27,11 @@ use Tappet\Cypress\Tests\AbstractTestCase;
  */
 class TextRegionAssertionHandlerTest extends AbstractTestCase
 {
-    // $cy is a Uniter FFI wrapper of Cypress's cy global; stub as an anonymous mock.
+    /**
+     * A Uniter FFI wrapper of Cypress's cy global, stubbed as an anonymous mock.
+     */
     private mixed $cy;
-    private CypressAutomation&MockInterface $automation;
+    private CypressAutomationInterface&MockInterface $automation;
     private TextRegionAssertionHandler $handler;
 
     public function setUp(): void
@@ -37,12 +39,12 @@ class TextRegionAssertionHandlerTest extends AbstractTestCase
         parent::setUp();
 
         $this->cy = mock();
-        $this->automation = mock(CypressAutomation::class, [
+        $this->automation = mock(CypressAutomationInterface::class, [
             'getCy' => $this->cy,
             'getAttributePrefix' => 'ui',
         ]);
 
-        $this->handler = new TextRegionAssertionHandler();
+        $this->handler = new TextRegionAssertionHandler($this->automation);
     }
 
     public function testGetHandlersMapsExpectRegionContainsClassToCallable(): void
@@ -74,7 +76,7 @@ class TextRegionAssertionHandlerTest extends AbstractTestCase
             ->once()
             ->andReturn($getChain);
 
-        $this->handler->getHandlers()[ExpectRegionContains::class]($assertion, $this->automation);
+        $this->handler->getHandlers()[ExpectRegionContains::class]($assertion);
     }
 
     public function testAssertRegionDoesNotContainNegativelyAssertsCorrectTextViaCyApi(): void
@@ -90,16 +92,17 @@ class TextRegionAssertionHandlerTest extends AbstractTestCase
             ->once()
             ->andReturn($getChain);
 
-        $this->handler->getHandlers()[ExpectRegionDoesNotContain::class]($assertion, $this->automation);
+        $this->handler->getHandlers()[ExpectRegionDoesNotContain::class]($assertion);
     }
 
     public function testAssertRegionContainsUsesConfiguredAttributePrefix(): void
     {
         $assertion = new ExpectRegionContains('flash-message', 'Saved successfully.');
-        $automation = mock(CypressAutomation::class, [
+        $automation = mock(CypressAutomationInterface::class, [
             'getCy' => $this->cy,
             'getAttributePrefix' => 'my-app',
         ]);
+        $handler = new TextRegionAssertionHandler($automation);
         $getChain = mock();
 
         $getChain->expects()
@@ -110,6 +113,6 @@ class TextRegionAssertionHandlerTest extends AbstractTestCase
             ->once()
             ->andReturn($getChain);
 
-        $this->handler->getHandlers()[ExpectRegionContains::class]($assertion, $automation);
+        $handler->getHandlers()[ExpectRegionContains::class]($assertion);
     }
 }
