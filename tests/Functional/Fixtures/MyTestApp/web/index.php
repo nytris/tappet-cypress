@@ -18,6 +18,9 @@ require __DIR__ . '/../../../../../vendor/autoload.php';
 use Tappet\Cypress\Tests\Functional\Fixtures\MyTestApp\test\app\Fixture\UserFixture;
 use Tappet\Cypress\Tests\Functional\Fixtures\MyTestApp\test\app\Fixture\UserModel;
 
+// Force a fixed session ID so that the multiple Node.js cy.task(...) fetch calls (which send
+// no cookie) share the same PHP session on disk.
+session_id('tappet-test');
 session_start();
 
 if (!isset($_SESSION['users'])) {
@@ -66,6 +69,8 @@ if ($method === 'POST'
         'first_name' => $fixture->getFirstName(),
         'last_name'  => $fixture->getLastName(),
         'email'      => $fixture->getEmail(),
+        'role'       => 'user',
+        'status'     => 'active',
     ];
 
     $model = new UserModel($id);
@@ -101,6 +106,8 @@ if ($method === 'POST' && $uri === '/.well-known/tappet/fixtures') {
             'first_name' => $fixture->getFirstName(),
             'last_name'  => $fixture->getLastName(),
             'email'      => $fixture->getEmail(),
+            'role'       => 'user',
+            'status'     => 'active',
         ];
         $models[$handle] = new UserModel($id);
     }
@@ -161,13 +168,45 @@ if ($method === 'GET' && $uri === '/users') {
     <?php if ($loggedIn): ?>
         <p>Logged in as: <?= htmlspecialchars($loggedIn['first_name'] . ' ' . $loggedIn['last_name']) ?></p>
     <?php endif; ?>
-    <ul>
+    <ul data-ui-region="user-list">
     <?php foreach ($users as $user): ?>
         <li>
             <a href="/users/<?= $user['id'] ?>"><?= htmlspecialchars($user['first_name'] . ' ' . $user['last_name']) ?></a>
         </li>
     <?php endforeach; ?>
     </ul>
+    <table data-ui-region="user-table">
+        <thead>
+        <tr>
+            <th data-ui-column="name">Name</th>
+            <th data-ui-column="email">Email</th>
+            <th data-ui-column="status" data-ui-match-type="badge">Status</th>
+        </tr>
+        </thead>
+        <tbody>
+        <?php foreach ($users as $user): ?>
+            <tr>
+                <td><?= htmlspecialchars($user['first_name'] . ' ' . $user['last_name']) ?></td>
+                <td><?= htmlspecialchars($user['email']) ?></td>
+                <td>
+                    <div data-ui-badge="<?= htmlspecialchars($user['status']) ?>"><?= htmlspecialchars(ucfirst($user['status'])) ?></div>
+                </td>
+            </tr>
+        <?php endforeach; ?>
+        </tbody>
+    </table>
+    <button data-ui-interaction="open-add-user-modal"
+            onclick="document.querySelector('[data-ui-modal=add-user]').removeAttribute('hidden')">
+        Add User
+    </button>
+    <div data-ui-modal="add-user" hidden>
+        <h2>Add User</h2>
+        <p>Modal content goes here.</p>
+        <button data-ui-interaction="close-add-user-modal"
+                onclick="document.querySelector('[data-ui-modal=add-user]').setAttribute('hidden', '')">
+            Close
+        </button>
+    </div>
     </body>
     </html>
     <?php
@@ -200,7 +239,28 @@ if ($method === 'GET' && preg_match('#^/users/(\d+)$#', $uri, $m)) {
                name="last_name"
                data-ui-field="last-name"
                value="<?= htmlspecialchars($user['last_name']) ?>">
+        <select name="role" data-ui-field="role">
+            <option value="user" <?= $user['role'] === 'user' ? 'selected' : '' ?>>User</option>
+            <option value="admin" <?= $user['role'] === 'admin' ? 'selected' : '' ?>>Admin</option>
+        </select>
+        <label>
+            <input type="radio"
+                   name="status"
+                   value="active"
+                   data-ui-field="status"
+                   <?= $user['status'] === 'active' ? 'checked' : '' ?>>
+            Active
+        </label>
+        <label>
+            <input type="radio"
+                   name="status"
+                   value="inactive"
+                   data-ui-field="status"
+                   <?= $user['status'] === 'inactive' ? 'checked' : '' ?>>
+            Inactive
+        </label>
         <button type="submit" data-ui-interaction="save">Save</button>
+        <a href="/users" data-ui-interaction="cancel">Cancel</a>
     </form>
     </body>
     </html>
@@ -220,6 +280,8 @@ if ($method === 'POST' && preg_match('#^/users/(\d+)$#', $uri, $m)) {
 
     $_SESSION['users'][$userId]['first_name'] = $_POST['first_name'] ?? '';
     $_SESSION['users'][$userId]['last_name'] = $_POST['last_name'] ?? '';
+    $_SESSION['users'][$userId]['role'] = $_POST['role'] ?? $_SESSION['users'][$userId]['role'];
+    $_SESSION['users'][$userId]['status'] = $_POST['status'] ?? $_SESSION['users'][$userId]['status'];
 
     $_SESSION['flash'] = [
         'type'    => 'success',

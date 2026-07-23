@@ -13,20 +13,38 @@ declare(strict_types=1);
 
 namespace Tappet\Cypress\Suite;
 
-use Tappet\Core\Automation\Field\FieldActionHandlerInterface;
-use Tappet\Core\Automation\Interaction\InteractionHandlerInterface;
-use Tappet\Core\Automation\Region\RegionAssertionHandlerInterface;
-use Tappet\Core\Automation\State\StateAssertionHandlerInterface;
+use Tappet\Common\Event\EventDispatcherInterface;
+use Tappet\Common\Event\EventInterface;
+use Tappet\Common\Event\EventListenerRegistryInterface;
 use Tappet\Cypress\Adapter\AdapterInterface;
 use Tappet\Cypress\Adapter\DefaultAdapter;
-use Tappet\Cypress\Automation\CypressAutomation;
+use Tappet\Cypress\Automation\CypressAutomationInterface;
+use Tappet\Cypress\Automation\Field\CheckboxFieldActionHandler;
+use Tappet\Cypress\Automation\Field\FileFieldActionHandler;
+use Tappet\Cypress\Automation\Field\RadioFieldActionHandler;
+use Tappet\Cypress\Automation\Field\RadioFieldAssertionHandler;
+use Tappet\Cypress\Automation\Field\SelectFieldActionHandler;
+use Tappet\Cypress\Automation\Field\SelectFieldAssertionHandler;
 use Tappet\Cypress\Automation\Field\TextFieldActionHandler;
+use Tappet\Cypress\Automation\Field\TextFieldAssertionHandler;
 use Tappet\Cypress\Automation\Interaction\ButtonInteractionHandler;
 use Tappet\Cypress\Automation\Interaction\HyperlinkInteractionHandler;
+use Tappet\Cypress\Automation\Matcher\TextMatchHandler;
+use Tappet\Cypress\Automation\Region\ListRegionAssertionHandler;
+use Tappet\Cypress\Automation\Region\TableRegionAssertionHandler;
 use Tappet\Cypress\Automation\Region\TextRegionAssertionHandler;
 use Tappet\Cypress\Automation\State\ExistsStateAssertionHandler;
+use Tappet\Cypress\Event\FieldActionInitEvent;
+use Tappet\Cypress\Event\FieldAssertionInitEvent;
+use Tappet\Cypress\Event\InteractionInitEvent;
+use Tappet\Cypress\Event\MatchHandlerInitEvent;
+use Tappet\Cypress\Event\RegionAssertionInitEvent;
+use Tappet\Cypress\Event\StateAssertionInitEvent;
+use Tappet\Runner\Transition\Log\TransitionLogInterface;
+use Tappet\Suite\Cli\CliOption;
 use Tappet\Suite\Cli\CliSpec;
 use Tappet\Suite\Cli\CliSpecInterface;
+use Tappet\Suite\Plugin\PluginInterface;
 use Tappet\Suite\Result\ResultInterface;
 use Tappet\Suite\Result\TestResult;
 use Tappet\Suite\SuiteInterface;
@@ -37,31 +55,81 @@ use Tappet\Suite\SuiteInterface;
  * Represents the test suite configuration for Tappet Cypress, allowing the suite implementation
  * to be configured via e.g. `tappet.cypress.config.php`.
  *
+ * @implements SuiteInterface<CypressAutomationInterface>
+ *
  * @author Dan Phillimore <dan@ovms.co>
  */
-class CypressSuite implements SuiteInterface
+class CypressSuite implements EventListenerRegistryInterface, SuiteInterface
 {
     /**
-     * @var AdapterInterface
+     * @var array<PluginInterface<CypressAutomationInterface>>
      */
-    private $adapter;
-    /**
-     * @var string
-     */
-    private $cypressRoot;
+    private array $plugins = [];
 
     public function __construct(
-        string $cypressRoot,
-        AdapterInterface $adapter = new DefaultAdapter()
+        private readonly string $cypressRoot,
+        private readonly AdapterInterface $adapter = new DefaultAdapter()
     ) {
-        $this->adapter = $adapter;
-        $this->cypressRoot = $cypressRoot;
+        $eventDispatcher = $adapter->getEventDispatcher();
 
-        $adapter->getFieldActionRegistry()->registerFieldActionHandler('text', new TextFieldActionHandler());
-        $adapter->getInteractionRegistry()->registerInteractionHandler('button', new ButtonInteractionHandler());
-        $adapter->getInteractionRegistry()->registerInteractionHandler('hyperlink', new HyperlinkInteractionHandler());
-        $adapter->getRegionAssertionRegistry()->registerRegionAssertionHandler('text', new TextRegionAssertionHandler());
-        $adapter->getStateAssertionRegistry()->registerStateAssertionHandler('exists', new ExistsStateAssertionHandler());
+        // Register built-in handlers.
+        $eventDispatcher->addEventListener(FieldActionInitEvent::class, function (FieldActionInitEvent $event): void {
+            $automation = $event->getAutomation();
+
+            $event->registerFieldActionHandler('checkbox', new CheckboxFieldActionHandler($automation));
+            $event->registerFieldActionHandler('file', new FileFieldActionHandler($automation));
+            $event->registerFieldActionHandler('radio', new RadioFieldActionHandler($automation));
+            $event->registerFieldActionHandler('select', new SelectFieldActionHandler($automation));
+            $event->registerFieldActionHandler('text', new TextFieldActionHandler($automation));
+        });
+
+        $eventDispatcher->addEventListener(FieldAssertionInitEvent::class, function (FieldAssertionInitEvent $event): void {
+            $automation = $event->getAutomation();
+
+            $event->registerFieldAssertionHandler('radio', new RadioFieldAssertionHandler($automation));
+            $event->registerFieldAssertionHandler('select', new SelectFieldAssertionHandler($automation));
+            $event->registerFieldAssertionHandler('text', new TextFieldAssertionHandler($automation));
+        });
+
+        $eventDispatcher->addEventListener(InteractionInitEvent::class, function (InteractionInitEvent $event): void {
+            $automation = $event->getAutomation();
+
+            $event->registerInteractionHandler('button', new ButtonInteractionHandler($automation));
+            $event->registerInteractionHandler('hyperlink', new HyperlinkInteractionHandler($automation));
+        });
+
+        $eventDispatcher->addEventListener(MatchHandlerInitEvent::class, function (MatchHandlerInitEvent $event): void {
+            $event->registerMatchHandler('default', new TextMatchHandler($event->getAutomation()));
+        });
+
+        $eventDispatcher->addEventListener(RegionAssertionInitEvent::class, function (RegionAssertionInitEvent $event): void {
+            $automation = $event->getAutomation();
+            $matcherRegistry = $event->getMatcherRegistry();
+
+            $event->registerRegionAssertionHandler('list', new ListRegionAssertionHandler($automation, $matcherRegistry));
+            $event->registerRegionAssertionHandler('table', new TableRegionAssertionHandler($automation, $matcherRegistry));
+            $event->registerRegionAssertionHandler('text', new TextRegionAssertionHandler($automation));
+        });
+
+        $eventDispatcher->addEventListener(StateAssertionInitEvent::class, function (StateAssertionInitEvent $event): void {
+            $event->registerStateAssertionHandler('exists', new ExistsStateAssertionHandler($event->getAutomation()));
+        });
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function addEventListener(string $eventClass, callable $listener): void
+    {
+        $this->adapter->getEventDispatcher()->addEventListener($eventClass, $listener);
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function addPlugin(PluginInterface $plugin): void
+    {
+        $this->plugins[] = $plugin;
     }
 
     /**
@@ -75,9 +143,30 @@ class CypressSuite implements SuiteInterface
     /**
      * Fetches the implementation of the Cypress automation.
      */
-    public function getAutomation(mixed $cy): CypressAutomation
+    public function getAutomation(mixed $cy, TransitionLogInterface $transitionLog): CypressAutomationInterface
     {
-        return $this->adapter->getAutomation($cy);
+        $automation = $this->adapter->getAutomation($cy, $transitionLog);
+        $eventDispatcher = $this->adapter->getEventDispatcher();
+
+        foreach ($this->plugins as $plugin) {
+            foreach ($plugin->getListeners() as $eventClass => $listener) {
+                $eventDispatcher->addEventListener(
+                    $eventClass,
+                    function (EventInterface $event) use ($listener, $automation): void {
+                        $listener($event, $automation);
+                    }
+                );
+            }
+        }
+
+        $eventDispatcher->dispatch(new FieldActionInitEvent($this->adapter, $automation));
+        $eventDispatcher->dispatch(new FieldAssertionInitEvent($this->adapter, $automation));
+        $eventDispatcher->dispatch(new InteractionInitEvent($this->adapter, $automation));
+        $eventDispatcher->dispatch(new MatchHandlerInitEvent($this->adapter, $automation));
+        $eventDispatcher->dispatch(new RegionAssertionInitEvent($this->adapter, $automation));
+        $eventDispatcher->dispatch(new StateAssertionInitEvent($this->adapter, $automation));
+
+        return $automation;
     }
 
     /**
@@ -85,39 +174,26 @@ class CypressSuite implements SuiteInterface
      */
     public function getCliSpec(): CliSpecInterface
     {
-        return new CliSpec();
+        return new CliSpec([
+            // e.g. "open" or "run".
+            new CliOption('mode', 'Cypress mode', false, false),
+        ]);
+    }
+
+    /**
+     * Fetches the event dispatcher.
+     */
+    public function getEventDispatcher(): EventDispatcherInterface
+    {
+        return $this->adapter->getEventDispatcher();
     }
 
     /**
      * @inheritDoc
      */
-    public function registerFieldActionHandler(string $fieldType, FieldActionHandlerInterface $handler): void
+    public function removeEventListener(string $eventClass, callable $listener): void
     {
-        $this->adapter->getFieldActionRegistry()->registerFieldActionHandler($fieldType, $handler);
-    }
-
-    /**
-     * @inheritDoc
-     */
-    public function registerInteractionHandler(string $interactionType, InteractionHandlerInterface $handler): void
-    {
-        $this->adapter->getInteractionRegistry()->registerInteractionHandler($interactionType, $handler);
-    }
-
-    /**
-     * @inheritDoc
-     */
-    public function registerRegionAssertionHandler(string $regionType, RegionAssertionHandlerInterface $handler): void
-    {
-        $this->adapter->getRegionAssertionRegistry()->registerRegionAssertionHandler($regionType, $handler);
-    }
-
-    /**
-     * @inheritDoc
-     */
-    public function registerStateAssertionHandler(string $stateType, StateAssertionHandlerInterface $handler): void
-    {
-        $this->adapter->getStateAssertionRegistry()->registerStateAssertionHandler($stateType, $handler);
+        $this->adapter->getEventDispatcher()->removeEventListener($eventClass, $listener);
     }
 
     /**
@@ -129,6 +205,7 @@ class CypressSuite implements SuiteInterface
         string $baseUrl,
         string $apiBaseUrl,
         string $apiKey,
+        bool $apiTlsVerification,
         ?string $filter,
         array $options
     ): ResultInterface {
@@ -136,6 +213,7 @@ class CypressSuite implements SuiteInterface
             'tappetSuite' => $suiteName,
             'tappetApiBaseUrl' => $apiBaseUrl,
             'tappetApiKey' => $apiKey,
+            'tappetApiTlsVerification' => $apiTlsVerification ? 'true' : 'false',
         ];
 
         if ($filter !== null) {
@@ -146,7 +224,8 @@ class CypressSuite implements SuiteInterface
             return $key . '=' . $value;
         }, array_keys($envVars), $envVars));
 
-        $command = $projectRoot . '/node_modules/.bin/cypress run' .
+        $command = $projectRoot . '/node_modules/.bin/cypress ' .
+            ($options['mode'] ?? 'run') .
             ' --config baseUrl=' . escapeshellarg($baseUrl) .
             ' -e ' . escapeshellarg($envVarsString);
 

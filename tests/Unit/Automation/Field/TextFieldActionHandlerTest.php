@@ -14,10 +14,11 @@ declare(strict_types=1);
 namespace Tappet\Cypress\Tests\Unit\Automation\Field;
 
 use Mockery\MockInterface;
-use Tappet\Core\Standard\Action\Type;
-use Tappet\Cypress\Automation\CypressAutomation;
+use Tappet\Cypress\Automation\CypressAutomationInterface;
 use Tappet\Cypress\Automation\Field\TextFieldActionHandler;
 use Tappet\Cypress\Tests\AbstractTestCase;
+use Tappet\Runner\Standard\Action\Clear;
+use Tappet\Runner\Standard\Action\Type;
 
 /**
  * Class TextFieldActionHandlerTest.
@@ -26,9 +27,11 @@ use Tappet\Cypress\Tests\AbstractTestCase;
  */
 class TextFieldActionHandlerTest extends AbstractTestCase
 {
-    // $cy is a Uniter FFI wrapper of Cypress's cy global; stub as an anonymous mock.
+    /**
+     * A Uniter FFI wrapper of Cypress's cy global, stubbed as an anonymous mock.
+     */
     private mixed $cy;
-    private CypressAutomation&MockInterface $automation;
+    private CypressAutomationInterface&MockInterface $automation;
     private TextFieldActionHandler $handler;
 
     public function setUp(): void
@@ -36,12 +39,12 @@ class TextFieldActionHandlerTest extends AbstractTestCase
         parent::setUp();
 
         $this->cy = mock();
-        $this->automation = mock(CypressAutomation::class, [
+        $this->automation = mock(CypressAutomationInterface::class, [
             'getAttributePrefix' => 'ui',
             'getCy' => $this->cy,
         ]);
 
-        $this->handler = new TextFieldActionHandler();
+        $this->handler = new TextFieldActionHandler($this->automation);
     }
 
     public function testGetHandlersMapsTypeActionClassToCallable(): void
@@ -50,6 +53,14 @@ class TextFieldActionHandlerTest extends AbstractTestCase
 
         static::assertArrayHasKey(Type::class, $handlers);
         static::assertIsCallable($handlers[Type::class]);
+    }
+
+    public function testGetHandlersMapsClearActionClassToCallable(): void
+    {
+        $handlers = $this->handler->getHandlers();
+
+        static::assertArrayHasKey(Clear::class, $handlers);
+        static::assertIsCallable($handlers[Clear::class]);
     }
 
     public function testTypeFieldTypesIntoFieldViaCyApi(): void
@@ -70,16 +81,17 @@ class TextFieldActionHandlerTest extends AbstractTestCase
             ->once()
             ->andReturn($getChain);
 
-        $this->handler->getHandlers()[Type::class]($action, $this->automation);
+        $this->handler->getHandlers()[Type::class]($action);
     }
 
     public function testTypeFieldUsesConfiguredAttributePrefix(): void
     {
         $action = new Type('username', 'hello world');
-        $automation = mock(CypressAutomation::class, [
+        $automation = mock(CypressAutomationInterface::class, [
             'getCy' => $this->cy,
             'getAttributePrefix' => 'my-app',
         ]);
+        $handler = new TextFieldActionHandler($automation);
         $getChain = mock();
 
         $getChain->expects()
@@ -95,6 +107,43 @@ class TextFieldActionHandlerTest extends AbstractTestCase
             ->once()
             ->andReturn($getChain);
 
-        $this->handler->getHandlers()[Type::class]($action, $automation);
+        $handler->getHandlers()[Type::class]($action);
+    }
+
+    public function testClearFieldClearsFieldViaCyApi(): void
+    {
+        $action = new Clear('search');
+        $getChain = mock();
+
+        $getChain->expects()
+            ->clear()
+            ->once();
+        $this->cy->expects()
+            ->get('[data-ui-field="search"]')
+            ->once()
+            ->andReturn($getChain);
+
+        $this->handler->getHandlers()[Clear::class]($action);
+    }
+
+    public function testClearFieldUsesConfiguredAttributePrefix(): void
+    {
+        $action = new Clear('search');
+        $automation = mock(CypressAutomationInterface::class, [
+            'getCy' => $this->cy,
+            'getAttributePrefix' => 'my-app',
+        ]);
+        $handler = new TextFieldActionHandler($automation);
+        $getChain = mock();
+
+        $getChain->expects()
+            ->clear()
+            ->once();
+        $this->cy->expects()
+            ->get('[data-my-app-field="search"]')
+            ->once()
+            ->andReturn($getChain);
+
+        $handler->getHandlers()[Clear::class]($action);
     }
 }

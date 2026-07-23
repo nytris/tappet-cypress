@@ -48,13 +48,14 @@
     "mocha": "mocha --import=tsx -r mocha-bootstrap --recursive 'test/functional/**/*Test.ts' 'test/integrated/**/*Test.ts' 'test/unit/**/*Test.ts'",
     "lint:eslint:check": "eslint '{src/ts,test}/**/*.ts' --max-warnings=0",
     "lint:eslint:fix": "eslint '{src/ts,test}/**/*.ts' --fix",
-    "lint:tsc:check": "tsc --noEmit",
+    "lint:tsc:check": "tsc --noEmit -p src/ts/tsconfig.json && tsc --noEmit -p test/tsconfig.json",
     "prepublishOnly": "npm test && npm run build:clean && npm run build",
     "test": "npm run lint:eslint:check && npm run lint:tsc:check && npm run mocha"
   },
   "dependencies": {
-    "dotphp": "^3.9.0",
-    "webpack-uniter-plugin": "^0.0.1"
+    "dotphp": "^3.10.0",
+    "undici": "^8.5.0",
+    "webpack-uniter-plugin": "^0.0.3"
   },
   "peerDependencies": {
     "@cypress/webpack-preprocessor": ">=6",
@@ -78,7 +79,7 @@
     "eslint-plugin-prettier": "^5.2.6",
     "mocha": "^11.1.0",
     "mocha-bootstrap": "^1.1.1",
-    "phpruntime": "^9.2.1",
+    "phpruntime": "^9.3.0",
     "prettier": "^3.5.3",
     "sinon": "^17.0.1",
     "sinon-chai": "^3.7.0",

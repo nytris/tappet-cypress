@@ -13,7 +13,7 @@ declare(strict_types=1);
 
 namespace Tappet\Cypress\Tests\Functional\Fixtures\MyTestApp\test\app\Fixture;
 
-use Tappet\Core\Fixture\ModelInterface;
+use Tappet\Common\Fixture\ModelInterface;
 
 class UserModel implements ModelInterface
 {

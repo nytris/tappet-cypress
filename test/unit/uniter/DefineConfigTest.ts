@@ -19,7 +19,7 @@ describe('defineConfig()', () => {
             });
 
             expect(config.plugins).to.be.an('array');
-            expect(config.plugins).to.have.length(2);
+            expect(config.plugins).to.have.length(3);
         });
 
         it('should set the rootDir in PHPify settings', () => {
@@ -96,7 +96,7 @@ describe('defineConfig()', () => {
             });
 
             expect(config.settings?.phpify?.include).to.include(
-                'vendor/tappet/tappet/src/{Core,Suite}/**/*.php',
+                'vendor/tappet/tappet/src/{Common,Runner,Suite}/**/*.php',
             );
             expect(config.settings?.phpify?.include).to.include(
                 'vendor/tappet/cypress/src/php/**/*.php',
@@ -146,7 +146,7 @@ describe('defineConfig()', () => {
             expect(config.settings?.phpify?.include).to.deep.equal([
                 'vendor/composer/**/*.php',
                 '!vendor/composer/pcre/**',
-                'vendor/tappet/tappet/src/{Core,Suite}/**/*.php',
+                'vendor/tappet/tappet/src/{Common,Runner,Suite}/**/*.php',
                 'vendor/tappet/cypress/src/php/**/*.php',
                 // Custom include.
                 'my/custom/path/**/*.php',
@@ -177,7 +177,7 @@ describe('defineConfig()', () => {
             expect(config.settings?.phpify?.include).to.deep.equal([
                 'vendor/composer/**/*.php',
                 '!vendor/composer/pcre/**',
-                'vendor/tappet/tappet/src/{Core,Suite}/**/*.php',
+                'vendor/tappet/tappet/src/{Common,Runner,Suite}/**/*.php',
                 'vendor/tappet/cypress/src/php/**/*.php',
             ]);
         });
@@ -275,7 +275,7 @@ describe('defineConfig()', () => {
             expect(config.settings?.phpify?.include).to.deep.equal([
                 'vendor/composer/**/*.php',
                 '!vendor/composer/pcre/**',
-                'vendor/tappet/tappet/src/{Core,Suite}/**/*.php',
+                'vendor/tappet/tappet/src/{Common,Runner,Suite}/**/*.php',
                 'vendor/tappet/cypress/src/php/**/*.php',
             ]);
         });
@@ -297,7 +297,7 @@ describe('defineConfig()', () => {
             expect(config.settings?.phpify?.include).to.deep.equal([
                 'vendor/composer/**/*.php',
                 '!vendor/composer/pcre/**',
-                'vendor/tappet/tappet/src/{Core,Suite}/**/*.php',
+                'vendor/tappet/tappet/src/{Common,Runner,Suite}/**/*.php',
                 'vendor/tappet/cypress/src/php/**/*.php',
                 // Autoload file.
                 'vendor/vnd/pkg/src/functions.php',
@@ -322,7 +322,7 @@ describe('defineConfig()', () => {
             expect(config.settings?.phpify?.include).to.deep.equal([
                 'vendor/composer/**/*.php',
                 '!vendor/composer/pcre/**',
-                'vendor/tappet/tappet/src/{Core,Suite}/**/*.php',
+                'vendor/tappet/tappet/src/{Common,Runner,Suite}/**/*.php',
                 'vendor/tappet/cypress/src/php/**/*.php',
                 // Autoload files.
                 'vendor/vnd/pkg/src/functions.php',
@@ -373,7 +373,7 @@ describe('defineConfig()', () => {
             expect(config.settings?.phpify?.include).to.deep.equal([
                 'vendor/composer/**/*.php',
                 '!vendor/composer/pcre/**',
-                'vendor/tappet/tappet/src/{Core,Suite}/**/*.php',
+                'vendor/tappet/tappet/src/{Common,Runner,Suite}/**/*.php',
                 'vendor/tappet/cypress/src/php/**/*.php',
                 // Caller-provided include entry.
                 'src/my-custom/**/*.php',

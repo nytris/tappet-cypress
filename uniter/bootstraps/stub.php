@@ -12,10 +12,10 @@
 declare(strict_types=1);
 
 // <stubs>
-function header() {
+function header(): void {
 
 }
-function headers_sent() {
+function headers_sent(): bool {
     return false;
 }
 // </stubs>

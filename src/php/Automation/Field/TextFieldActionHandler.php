@@ -13,43 +13,67 @@ declare(strict_types=1);
 
 namespace Tappet\Cypress\Automation\Field;
 
-use Tappet\Core\Action\FieldActionInterface;
-use Tappet\Core\Automation\AutomationInterface;
-use Tappet\Core\Automation\Field\FieldActionHandlerInterface;
-use Tappet\Core\Standard\Action\Type;
-use Tappet\Cypress\Automation\CypressAutomation;
+use Tappet\Cypress\Automation\CypressAutomationInterface;
+use Tappet\Runner\Action\FieldActionInterface;
+use Tappet\Runner\Automation\Field\FieldActionHandlerInterface;
+use Tappet\Runner\Standard\Action\Clear;
+use Tappet\Runner\Standard\Action\Type;
 
 /**
  * Class TextFieldActionHandler.
  *
  * Handles actions on text fields.
  *
+ * @implements FieldActionHandlerInterface<FieldActionInterface>
+ *
  * @author Dan Phillimore <dan@ovms.co>
  */
 class TextFieldActionHandler implements FieldActionHandlerInterface
 {
+    public function __construct(
+        private readonly CypressAutomationInterface $automation
+    ) {
+    }
+
     /**
      * @inheritDoc
      */
     public function getHandlers(): array
     {
         return [
-            Type::class => function (FieldActionInterface $action, AutomationInterface $automation): void {
+            Clear::class => function (FieldActionInterface $action): void {
+                /** @var Clear $action */
+                $this->clearField($action);
+            },
+            Type::class => function (FieldActionInterface $action): void {
                 /** @var Type $action */
-                /** @var CypressAutomation $automation */
-                $this->typeField($action, $automation);
+                $this->typeField($action);
             },
         ];
     }
 
     /**
+     * Clears the text field without typing anything new.
+     */
+    public function clearField(Clear $action): void
+    {
+        $attributePrefix = $this->automation->getAttributePrefix();
+        $cy = $this->automation->getCy();
+
+        $cy->get('[data-' . $attributePrefix . '-field="' . $action->getFieldHandle() . '"]')
+            ->clear();
+    }
+
+    /**
      * Types the specified text into the text field.
      */
-    public function typeField(Type $action, CypressAutomation $automation): void
+    public function typeField(Type $action): void
     {
-        $attributePrefix = $automation->getAttributePrefix();
-        $cy = $automation->getCy();
+        $attributePrefix = $this->automation->getAttributePrefix();
+        $cy = $this->automation->getCy();
 
-        $cy->get('[data-' . $attributePrefix . '-field="' . $action->getFieldHandle() . '"]')->clear()->type($action->getText());
+        $cy->get('[data-' . $attributePrefix . '-field="' . $action->getFieldHandle() . '"]')
+            ->clear()
+            ->type($action->getText());
     }
 }

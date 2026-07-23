@@ -13,9 +13,9 @@ declare(strict_types=1);
 
 namespace Tappet\Cypress\Tests\Functional\Fixtures\MyTestApp\test\app\Assertion;
 
-use Tappet\Core\Assertion\AssertionInterface;
-use Tappet\Core\Environment\EnvironmentInterface;
-use Tappet\Core\Standard\Assertion\ExpectRegionContains;
+use Tappet\Runner\Assertion\AssertionInterface;
+use Tappet\Runner\Environment\EnvironmentInterface;
+use Tappet\Runner\Standard\Assertion\ExpectRegionContains;
 
 class ExpectFlash implements AssertionInterface
 {

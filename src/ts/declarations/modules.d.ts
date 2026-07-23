@@ -26,6 +26,11 @@ declare module 'phpruntime/src/plugin/eval' {
     export = plugin;
 }
 
+declare module 'phpruntime/src/plugin/pcre/basicSupport' {
+    const plugin: unknown;
+    export = plugin;
+}
+
 declare module '@cypress/webpack-preprocessor' {
     interface WebpackPreprocessorOptions {
         webpackOptions: {
