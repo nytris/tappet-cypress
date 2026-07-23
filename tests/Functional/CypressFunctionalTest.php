@@ -307,6 +307,56 @@ class CypressFunctionalTest extends AbstractFunctionalTestCase
         static::assertStringContainsString('1 failing', $allOutput);
     }
 
+    public function testCypressPurgesDeferredPurgeFixtureOnlyOnceTheWholeRunHasExited(): void
+    {
+        $packageRoot = dirname(__DIR__, 2);
+        $cypressProjectDir = $packageRoot . '/tests/Functional/Fixtures/MyTestApp/test';
+
+        // Isolated in deferred-purge-spec/ (see that spec file's own comment) rather than
+        // spec/, so it doesn't affect the scenario-count assertions the other tests here make
+        // against the default specPattern.
+        $command = sprintf(
+            '%s/node_modules/.bin/cypress run --project %s --config baseUrl=%s,specPattern=deferred-purge-spec/**/*.spec.php --env tappetApiBaseUrl=%s 2>&1',
+            escapeshellarg($packageRoot),
+            escapeshellarg($cypressProjectDir),
+            'http://localhost:' . $this->webServerPort,
+            'http://localhost:' . $this->webServerPort,
+        );
+
+        $output = [];
+        $exitCode = 0;
+        exec($command, $output, $exitCode);
+        $allOutput = implode("\n", $output);
+
+        static::assertSame(
+            0,
+            $exitCode,
+            sprintf(
+                "Cypress exited with code %d.\nOutput:\n%s",
+                $exitCode,
+                $allOutput,
+            ),
+        );
+        static::assertStringContainsString('deferred_purge.spec.php', $allOutput);
+        static::assertStringContainsString('All specs passed!', $allOutput);
+        static::assertStringNotContainsString(' 0 passing', $allOutput);
+
+        /*
+         * The deferred-purge fixture's model must have been purged now that the whole Cypress
+         * run's Node.js controller process has exited - its "after:run" handler (src/ts/cypress/
+         * plugin/index.ts) sends the deferred DELETE request as the process drains, which keeps
+         * the event loop alive until that request settles, so it's expected to have completed by
+         * the time exec() above returns (the "cypress run" CLI process only exits once its own
+         * Node.js event loop is fully drained).
+         */
+        $usersPageHtml = file_get_contents(
+            'http://' . self::WEBSERVER_HOST . ':' . $this->webServerPort . '/users',
+        );
+
+        static::assertIsString($usersPageHtml);
+        static::assertStringNotContainsString('Persistent User', $usersPageHtml);
+    }
+
     public function testCypressPassesAllSpecsWhenRunViaTappetBinary(): void
     {
         $packageRoot = dirname(__DIR__, 2);

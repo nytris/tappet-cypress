@@ -435,6 +435,10 @@ describe('uniter/plugin/phpcore.config', () => {
                         fixture: string;
                         model: string;
                     }[],
+                    modelsToDeferredPurge: {
+                        fixture: string;
+                        model: string;
+                    }[],
                 ) => Promise<void>;
             };
 
@@ -454,7 +458,7 @@ describe('uniter/plugin/phpcore.config', () => {
             });
 
             it('should call cy.task() with tappetCypressPurgeFixtures', async () => {
-                await getApi().purge([]);
+                await getApi().purge([], []);
 
                 expect(cypressCy.task).to.have.been.calledWith(
                     'tappetCypressPurgeFixtures',
@@ -463,11 +467,11 @@ describe('uniter/plugin/phpcore.config', () => {
             });
 
             it('should pass empty models data in the task payload when empty', async () => {
-                await getApi().purge([]);
+                await getApi().purge([], []);
 
                 expect(cypressCy.task).to.have.been.calledWith(
                     'tappetCypressPurgeFixtures',
-                    { modelsToPurge: [] },
+                    { modelsToPurge: [], modelsToDeferredPurge: [] },
                 );
             });
 
@@ -483,11 +487,27 @@ describe('uniter/plugin/phpcore.config', () => {
                     },
                 ];
 
-                await getApi().purge(modelsToPurge);
+                await getApi().purge(modelsToPurge, []);
 
                 expect(cypressCy.task).to.have.been.calledWith(
                     'tappetCypressPurgeFixtures',
-                    { modelsToPurge },
+                    { modelsToPurge, modelsToDeferredPurge: [] },
+                );
+            });
+
+            it('should pass the deferred-purge models data in the task payload when non-empty', async () => {
+                const modelsToDeferredPurge = [
+                    {
+                        fixture: 'serialised-fixture-1',
+                        model: 'serialised-model-1',
+                    },
+                ];
+
+                await getApi().purge([], modelsToDeferredPurge);
+
+                expect(cypressCy.task).to.have.been.calledWith(
+                    'tappetCypressPurgeFixtures',
+                    { modelsToPurge: [], modelsToDeferredPurge },
                 );
             });
         });

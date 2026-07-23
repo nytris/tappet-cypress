@@ -230,10 +230,15 @@ export const addons: UniterAddon[] = [
                                     fixture: string;
                                     model: string;
                                 }[],
+                                modelsToDeferredPurge: {
+                                    fixture: string;
+                                    model: string;
+                                }[],
                             ) => {
                                 await new Promise((resolve) => {
                                     cy.task('tappetCypressPurgeFixtures', {
                                         modelsToPurge,
+                                        modelsToDeferredPurge,
                                     }).then(resolve);
                                 });
                             },

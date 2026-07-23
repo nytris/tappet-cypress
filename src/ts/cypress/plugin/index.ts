@@ -28,6 +28,7 @@ export type CypressOnFunction = (event: string, handler: unknown) => void;
  */
 export interface CypressConfig {
     env?: Record<string, unknown>;
+    experimentalInteractiveRunEvents?: boolean;
     hosts?: Record<string, string>;
 }
 
@@ -80,17 +81,21 @@ export function createPlugin(
     UniterPluginCtor: typeof UniterPlugin,
     requestFn: typeof request = request,
     AgentCtor: typeof Agent = Agent,
-): (on: CypressOnFunction, config?: CypressConfig) => void {
-    return (on: CypressOnFunction, config: CypressConfig = {}): void => {
+): (on: CypressOnFunction, config?: CypressConfig) => CypressConfig {
+    return (
+        on: CypressOnFunction,
+        config: CypressConfig = {},
+    ): CypressConfig => {
         const hosts = config.hosts ?? {};
         const apiTlsVerification =
-            (config.env?.tappetApiTlsVerification as string | undefined) !==
-            'false';
+            (config.env?.tappetApiTlsVerification as boolean | undefined) ??
+            true;
         const httpsAgent = new AgentCtor({
             connect: {
                 rejectUnauthorized: apiTlsVerification,
             },
         });
+
         const mappedRequest = (
             url: string,
             options?: Parameters<typeof request>[1],
@@ -136,6 +141,43 @@ export function createPlugin(
 
         const loadedFixturesByKey = new Map();
         const loadedMultipleFixturesByKey = new Map();
+        const deferredPurgeFixtureModelsByKey = new Map<
+            string,
+            { fixture: string; model: string }
+        >();
+
+        /*
+         * Purges any fixtures enqueued via tappetCypressPurgeFixtures' `modelsToDeferredPurge`,
+         * once the whole Cypress run finishes - once for "run" mode, or once per project close for
+         * "open" mode (see the experimentalInteractiveRunEvents flag returned below) - rather than
+         * after every scenario. Cypress explicitly awaits the promise returned from an "after:run"
+         * handler before it exits, allowing async work such as the web request to complete.
+         */
+        on('after:run', async (): Promise<void> => {
+            const deferredPurgeFixturesPayload = Array.from(
+                deferredPurgeFixtureModelsByKey.values(),
+            );
+
+            return mappedRequest(apiBaseUrl + '/.well-known/tappet/fixtures', {
+                dispatcher: httpsAgent,
+                method: 'DELETE',
+                headers: {
+                    Authorization: `Bearer ${apiKey}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(deferredPurgeFixturesPayload),
+            })
+                .then(() => undefined)
+                .catch((error) => {
+                    // Intentionally log details to the host console for inspection.
+                    console.error(
+                        'tappetCypressPurgeFixtures deferred-purge on after:run request() ERROR:',
+                    );
+                    console.dir(error);
+
+                    throw error;
+                });
+        });
 
         on('task', {
             tappetCypressGetApiBaseUrl() {
@@ -242,11 +284,27 @@ export function createPlugin(
             },
             async tappetCypressPurgeFixtures({
                 modelsToPurge,
+                modelsToDeferredPurge,
             }: {
-                modelsToPurge: string;
+                modelsToPurge: {
+                    fixture: string;
+                    model: string;
+                }[];
+                modelsToDeferredPurge: {
+                    fixture: string;
+                    model: string;
+                }[];
             }) {
                 loadedFixturesByKey.clear();
                 loadedMultipleFixturesByKey.clear();
+
+                // If already enqueued, these fixtures will only be deferred-purged once.
+                for (const modelToPurge of modelsToDeferredPurge) {
+                    deferredPurgeFixtureModelsByKey.set(
+                        JSON.stringify(modelToPurge),
+                        modelToPurge,
+                    );
+                }
 
                 await mappedRequest(
                     apiBaseUrl + '/.well-known/tappet/fixtures',
@@ -272,6 +330,12 @@ export function createPlugin(
                 return null;
             },
         });
+
+        return {
+            // Required so that "after:run" (registered above) also fires for Cypress "open" mode,
+            // when the project is closed, rather than only for "run" mode.
+            experimentalInteractiveRunEvents: true,
+        };
     };
 }
 
@@ -285,7 +349,9 @@ export function createPlugin(
  * module.exports = defineConfig({
  *   e2e: {
  *     setupNodeEvents(on, config) {
- *       register(on, config);
+ *       // The return here is important - it allows the plugin to apply config overrides
+ *       // (currently just enabling experimentalInteractiveRunEvents).
+ *       return register(on, config);
  *     },
  *   },
  * });
@@ -294,9 +360,9 @@ export function createPlugin(
 export function register(
     on: CypressOnFunction,
     config: CypressConfig = {},
-): void {
+): CypressConfig {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    createPlugin(require('@cypress/webpack-preprocessor'), UniterPlugin)(
+    return createPlugin(require('@cypress/webpack-preprocessor'), UniterPlugin)(
         on,
         config,
     );

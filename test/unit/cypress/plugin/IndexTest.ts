@@ -50,15 +50,19 @@ describe('cypress/plugin/index', () => {
                 },
             };
 
+            function createTestPlugin(): ReturnType<typeof createPlugin> {
+                return createPlugin(
+                    stubPreprocessorFactory,
+                    StubUniterPlugin as unknown as new () => object,
+                );
+            }
+
             beforeEach(() => {
                 on = sinon.stub();
             });
 
             it('should register the file:preprocessor event', () => {
-                const plugin = createPlugin(
-                    stubPreprocessorFactory,
-                    StubUniterPlugin as unknown as new () => object,
-                );
+                const plugin = createTestPlugin();
 
                 plugin(on, validConfig);
 
@@ -66,10 +70,7 @@ describe('cypress/plugin/index', () => {
             });
 
             it('should call on with the result of the preprocessor factory', () => {
-                const plugin = createPlugin(
-                    stubPreprocessorFactory,
-                    StubUniterPlugin as unknown as new () => object,
-                );
+                const plugin = createTestPlugin();
 
                 plugin(on, validConfig);
 
@@ -77,10 +78,7 @@ describe('cypress/plugin/index', () => {
             });
 
             it('should call the preprocessor factory with webpackOptions', () => {
-                const plugin = createPlugin(
-                    stubPreprocessorFactory,
-                    StubUniterPlugin as unknown as new () => object,
-                );
+                const plugin = createTestPlugin();
 
                 plugin(on, validConfig);
 
@@ -91,10 +89,7 @@ describe('cypress/plugin/index', () => {
             });
 
             it('should include an instance of UniterPlugin in the webpack plugins', () => {
-                const plugin = createPlugin(
-                    stubPreprocessorFactory,
-                    StubUniterPlugin as unknown as new () => object,
-                );
+                const plugin = createTestPlugin();
 
                 plugin(on, validConfig);
 
@@ -103,6 +98,28 @@ describe('cypress/plugin/index', () => {
                 expect(webpackOptions.plugins).to.be.an('array');
                 expect(webpackOptions.plugins).to.have.length(1);
                 expect(StubUniterPlugin).to.have.been.calledWithNew;
+            });
+
+            it('should register the after:run event', () => {
+                const plugin = createTestPlugin();
+
+                plugin(on, validConfig);
+
+                expect(on).to.have.been.calledWith(
+                    'after:run',
+                    sinon.match.func,
+                );
+            });
+
+            it('should return the config with experimentalInteractiveRunEvents enabled, so that after:run also fires when closing a project in Cypress "open" mode', () => {
+                const plugin = createTestPlugin();
+
+                const result = plugin(on, validConfig);
+
+                expect(result).to.have.property(
+                    'experimentalInteractiveRunEvents',
+                    true,
+                );
             });
 
             it('should throw if tappetApiBaseUrl is not set in config.env', () => {
@@ -135,6 +152,16 @@ describe('cypress/plugin/index', () => {
                 );
             });
 
+            function getTaskHandlers(
+                localOn: sinon.SinonStub<Parameters<CypressOnFunction>>,
+            ): TaskHandlers {
+                const call = localOn
+                    .getCalls()
+                    .find((call) => call.args[0] === 'task');
+
+                return call!.args[1] as TaskHandlers;
+            }
+
             describe('host mapping', () => {
                 function setupWithHosts(
                     hosts: Record<string, string>,
@@ -152,7 +179,7 @@ describe('cypress/plugin/index', () => {
                         },
                     });
 
-                    return localOn.secondCall.args[1] as TaskHandlers;
+                    return getTaskHandlers(localOn);
                 }
 
                 async function loadFixture(
@@ -307,7 +334,7 @@ describe('cypress/plugin/index', () => {
                         },
                     });
 
-                    return localOn.secondCall.args[1] as TaskHandlers;
+                    return getTaskHandlers(localOn);
                 }
 
                 it('should default tappetCypressGetApiBaseUrl to config.env.tappetApiBaseUrl', async () => {
@@ -386,8 +413,8 @@ describe('cypress/plugin/index', () => {
                     });
                 });
 
-                it('should verify TLS when tappetApiTlsVerification is not "false"', () => {
-                    setup({ tappetApiTlsVerification: 'true' });
+                it('should verify TLS when tappetApiTlsVerification is true', () => {
+                    setup({ tappetApiTlsVerification: true });
 
                     expect(StubAgent).to.have.been.calledOnce;
                     expect(StubAgent.firstCall.args[0]).to.deep.equal({
@@ -395,13 +422,233 @@ describe('cypress/plugin/index', () => {
                     });
                 });
 
-                it('should not verify TLS when tappetApiTlsVerification is "false"', () => {
-                    setup({ tappetApiTlsVerification: 'false' });
+                it('should not verify TLS when tappetApiTlsVerification is false', () => {
+                    setup({ tappetApiTlsVerification: false });
 
                     expect(StubAgent).to.have.been.calledOnce;
                     expect(StubAgent.firstCall.args[0]).to.deep.equal({
                         connect: { rejectUnauthorized: false },
                     });
+                });
+            });
+
+            describe('deferred purge', () => {
+                type PurgeTaskHandlers = {
+                    tappetCypressPurgeFixtures: (args: {
+                        modelsToPurge: { fixture: string; model: string }[];
+                        modelsToDeferredPurge: {
+                            fixture: string;
+                            model: string;
+                        }[];
+                    }) => Promise<null>;
+                };
+
+                function setup(): {
+                    handlers: PurgeTaskHandlers;
+                    localOn: sinon.SinonStub<Parameters<CypressOnFunction>>;
+                } {
+                    const localOn = sinon.stub<Parameters<CypressOnFunction>>();
+
+                    createPlugin(
+                        stubPreprocessorFactory,
+                        StubUniterPlugin as unknown as new () => object,
+                        stubRequest,
+                    )(localOn, {
+                        env: {
+                            tappetApiBaseUrl: 'https://my-app.example.com',
+                            tappetApiKey: 'test-key',
+                        },
+                    });
+
+                    return {
+                        handlers: getTaskHandlers(
+                            localOn,
+                        ) as unknown as PurgeTaskHandlers,
+                        localOn,
+                    };
+                }
+
+                function getAfterRunHandler(
+                    localOn: sinon.SinonStub<Parameters<CypressOnFunction>>,
+                ): () => Promise<void> {
+                    const call = localOn
+                        .getCalls()
+                        .find((call) => call.args[0] === 'after:run');
+
+                    return call!.args[1] as () => Promise<void>;
+                }
+
+                beforeEach(() => {
+                    stubRequest.resolves({
+                        body: { json: () => Promise.resolve({}) },
+                    });
+                });
+
+                it('should register an after:run handler', () => {
+                    const { localOn } = setup();
+
+                    expect(getAfterRunHandler(localOn)).to.be.a('function');
+                });
+
+                it('should still send modelsToPurge immediately via DELETE when tappetCypressPurgeFixtures is called', async () => {
+                    const { handlers } = setup();
+
+                    await handlers.tappetCypressPurgeFixtures({
+                        modelsToPurge: [
+                            {
+                                fixture: 'immediate-fixture',
+                                model: 'immediate-model',
+                            },
+                        ],
+                        modelsToDeferredPurge: [],
+                    });
+
+                    expect(stubRequest).to.have.been.calledOnce;
+                    const [url, options] = stubRequest.firstCall.args;
+                    expect(url).to.equal(
+                        'https://my-app.example.com/.well-known/tappet/fixtures',
+                    );
+                    expect(options.method).to.equal('DELETE');
+                    expect(JSON.parse(options.body)).to.deep.equal([
+                        {
+                            fixture: 'immediate-fixture',
+                            model: 'immediate-model',
+                        },
+                    ]);
+                });
+
+                it('should not send deferred-purge models immediately when tappetCypressPurgeFixtures is called', async () => {
+                    const { handlers } = setup();
+
+                    await handlers.tappetCypressPurgeFixtures({
+                        modelsToPurge: [],
+                        modelsToDeferredPurge: [
+                            {
+                                fixture: 'deferred-fixture',
+                                model: 'deferred-model',
+                            },
+                        ],
+                    });
+
+                    expect(stubRequest).to.have.been.calledOnce;
+                    const options = stubRequest.firstCall.args[1];
+                    expect(JSON.parse(options.body)).to.deep.equal([]);
+                });
+
+                it('should send only the enqueued deferred-purge models in the after:run DELETE request body', async () => {
+                    const { handlers, localOn } = setup();
+
+                    await handlers.tappetCypressPurgeFixtures({
+                        modelsToPurge: [
+                            {
+                                fixture: 'immediate-fixture',
+                                model: 'immediate-model',
+                            },
+                        ],
+                        modelsToDeferredPurge: [
+                            {
+                                fixture: 'deferred-fixture',
+                                model: 'deferred-model',
+                            },
+                        ],
+                    });
+                    stubRequest.resetHistory();
+
+                    await getAfterRunHandler(localOn)();
+
+                    expect(stubRequest).to.have.been.calledOnce;
+                    const [url, options] = stubRequest.firstCall.args;
+                    expect(url).to.equal(
+                        'https://my-app.example.com/.well-known/tappet/fixtures',
+                    );
+                    expect(options.method).to.equal('DELETE');
+                    expect(JSON.parse(options.body)).to.deep.equal([
+                        {
+                            fixture: 'deferred-fixture',
+                            model: 'deferred-model',
+                        },
+                    ]);
+                });
+
+                it('should include the Authorization and Content-Type headers in the after:run DELETE request', async () => {
+                    const { handlers, localOn } = setup();
+
+                    await handlers.tappetCypressPurgeFixtures({
+                        modelsToPurge: [],
+                        modelsToDeferredPurge: [
+                            {
+                                fixture: 'deferred-fixture',
+                                model: 'deferred-model',
+                            },
+                        ],
+                    });
+                    stubRequest.resetHistory();
+
+                    await getAfterRunHandler(localOn)();
+
+                    const options = stubRequest.firstCall.args[1];
+                    expect(options.headers).to.deep.equal({
+                        Authorization: 'Bearer test-key',
+                        'Content-Type': 'application/json',
+                    });
+                });
+
+                it('should send an empty array when no deferred-purge models were ever enqueued', async () => {
+                    const { localOn } = setup();
+
+                    await getAfterRunHandler(localOn)();
+
+                    expect(stubRequest).to.have.been.calledOnce;
+                    const options = stubRequest.firstCall.args[1];
+                    expect(JSON.parse(options.body)).to.deep.equal([]);
+                });
+
+                it('should deduplicate a fixture model enqueued for deferred purge multiple times', async () => {
+                    const { handlers, localOn } = setup();
+                    const model = { fixture: 'f', model: 'm' };
+
+                    await handlers.tappetCypressPurgeFixtures({
+                        modelsToPurge: [],
+                        modelsToDeferredPurge: [model],
+                    });
+                    await handlers.tappetCypressPurgeFixtures({
+                        modelsToPurge: [],
+                        modelsToDeferredPurge: [model],
+                    });
+                    stubRequest.resetHistory();
+
+                    await getAfterRunHandler(localOn)();
+
+                    const options = stubRequest.firstCall.args[1];
+                    expect(JSON.parse(options.body)).to.deep.equal([model]);
+                });
+
+                it('should log the error and rethrow when the after:run DELETE request fails', async () => {
+                    const { handlers, localOn } = setup();
+
+                    await handlers.tappetCypressPurgeFixtures({
+                        modelsToPurge: [],
+                        modelsToDeferredPurge: [
+                            {
+                                fixture: 'deferred-fixture',
+                                model: 'deferred-model',
+                            },
+                        ],
+                    });
+
+                    const consoleErrorStub = sinon.stub(console, 'error');
+                    const consoleDirStub = sinon.stub(console, 'dir');
+                    const failure = new Error('network down');
+                    stubRequest.rejects(failure);
+
+                    await expect(
+                        getAfterRunHandler(localOn)(),
+                    ).to.be.rejectedWith(failure);
+
+                    expect(consoleErrorStub).to.have.been.calledWith(
+                        'tappetCypressPurgeFixtures deferred-purge on after:run request() ERROR:',
+                    );
+                    expect(consoleDirStub).to.have.been.calledWith(failure);
                 });
             });
         });
