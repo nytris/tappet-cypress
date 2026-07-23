@@ -1,5 +1,5 @@
 {
-  "version": "0.1.0",
+  "version": "0.2.0",
   "name": "@tappet/cypress",
   "description": "Enjoyable GUI testing with Tappet, using Cypress",
   "keywords": [
