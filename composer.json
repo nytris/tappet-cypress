@@ -14,7 +14,7 @@
     },
     "require": {
         "php": ">=8.1",
-        "tappet/tappet": "^0.2.2"
+        "tappet/tappet": "^0.2.3"
     },
     "require-dev": {
         "ext-posix": "*",
