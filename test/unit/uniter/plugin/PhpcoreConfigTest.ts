@@ -609,8 +609,7 @@ describe('uniter/plugin/phpcore.config', () => {
                 getDescribeHandler = call!.args[1] as typeof getDescribeHandler;
             });
 
-            it('should wait for the transition log reset and model repository purge to settle before the test proceeds', async () => {
-                const purge = sinon.stub().resolves();
+            it('should reset the transition log before the test proceeds', async () => {
                 const reset = sinon.stub().resolves();
 
                 const initCall = (
@@ -622,7 +621,7 @@ describe('uniter/plugin/phpcore.config', () => {
                     );
                 (initCall!.args[1] as (log: unknown) => void)({ reset });
 
-                await getDescribeHandler({ purge })({
+                await getDescribeHandler({ purge: sinon.stub().resolves() })({
                     getDescription: async () => 'My module',
                     getScenarios: async () => [],
                 });
@@ -631,10 +630,9 @@ describe('uniter/plugin/phpcore.config', () => {
 
                 cypressBeforeEachHandlers[0]();
 
-                await waitUntil(() => purge.called);
+                await waitUntil(() => reset.called);
 
                 expect(reset).to.have.been.calledOnce;
-                expect(purge).to.have.been.calledOnce;
                 expect(thenRejections).to.deep.equal([]);
             });
 
@@ -662,6 +660,30 @@ describe('uniter/plugin/phpcore.config', () => {
                 expect(thenRejections).to.deep.equal([]);
             });
 
+            it('should purge fixtures after scenario.perform() settles successfully, within the same test', async () => {
+                const perform = sinon.stub().resolves();
+                const purge = sinon.stub().resolves();
+
+                await getDescribeHandler({ purge })({
+                    getDescription: async () => 'My module',
+                    getScenarios: async () => [
+                        {
+                            getDescription: async () => 'does the thing',
+                            perform,
+                        },
+                    ],
+                });
+
+                cypressItCalls[0].fn();
+
+                await waitUntil(() => purge.called);
+
+                expect(perform).to.have.been.calledOnce;
+                expect(purge).to.have.been.calledOnce;
+                expect(purge).to.have.been.calledAfter(perform);
+                expect(thenRejections).to.deep.equal([]);
+            });
+
             it('should propagate a rejection from scenario.perform() as a command failure rather than swallowing it', async () => {
                 const failure = new Error('Scenario failed');
                 const perform = sinon.stub().rejects(failure);
@@ -681,6 +703,28 @@ describe('uniter/plugin/phpcore.config', () => {
                 await waitUntil(() => thenRejections.length > 0);
 
                 expect(thenRejections).to.deep.equal([failure]);
+            });
+
+            it('should still purge fixtures when scenario.perform() rejects, before propagating the rejection', async () => {
+                const failure = new Error('Scenario failed');
+                const perform = sinon.stub().rejects(failure);
+                const purge = sinon.stub().resolves();
+
+                await getDescribeHandler({ purge })({
+                    getDescription: async () => 'My module',
+                    getScenarios: async () => [
+                        {
+                            getDescription: async () => 'does the thing',
+                            perform,
+                        },
+                    ],
+                });
+
+                cypressItCalls[0].fn();
+
+                await waitUntil(() => thenRejections.length > 0);
+
+                expect(purge).to.have.been.calledOnce;
             });
         });
 

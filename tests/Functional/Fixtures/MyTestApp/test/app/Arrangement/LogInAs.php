@@ -14,8 +14,10 @@ declare(strict_types=1);
 namespace Tappet\Cypress\Tests\Functional\Fixtures\MyTestApp\test\app\Arrangement;
 
 use Tappet\Cypress\Tests\Functional\Fixtures\MyTestApp\test\app\Fixture\UserModel;
+use Tappet\Cypress\Tests\Functional\Fixtures\MyTestApp\test\app\Page\UserListPage;
 use Tappet\Runner\Arrangement\ArrangementInterface;
 use Tappet\Runner\Environment\EnvironmentInterface;
+use Tappet\Runner\Transition\PageTransition;
 
 class LogInAs implements ArrangementInterface
 {
@@ -34,5 +36,7 @@ class LogInAs implements ArrangementInterface
         $userId = $environment->getFixtureModel(UserModel::class, $this->handle)->getId();
 
         $environment->visitUrl('/_tappet/auth/login/' . $userId);
+
+        $environment->assertTransition(new PageTransition(new UserListPage(), $environment));
     }
 }

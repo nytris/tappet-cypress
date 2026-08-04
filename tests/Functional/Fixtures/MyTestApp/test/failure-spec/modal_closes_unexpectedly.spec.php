@@ -35,8 +35,7 @@ Tappet::describe('Modal Failure -> Unexpected Close', [
             new LoadMultipleFixtures([
                 'adam-admin' => new UserFixture('Adam', 'Admin', 'adam.admin@example.com'),
             ]),
-            new LogInAs('adam-admin'),
-            new ExpectNewPage(new UserListPage())
+            new LogInAs('adam-admin')
         )
         ->act(
             new Enact('open-add-user-modal'),

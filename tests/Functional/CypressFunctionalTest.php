@@ -388,6 +388,50 @@ class CypressFunctionalTest extends AbstractFunctionalTestCase
         static::assertStringNotContainsString(' 0 passing', $allOutput);
     }
 
+    public function testCypressPersistsWebpackBundlesToTheConfiguredCacheDirectoryWhenSet(): void
+    {
+        $packageRoot = dirname(__DIR__, 2);
+        // Deliberately not pre-created, to also confirm Webpack itself creates it.
+        $webpackCacheDirectory = sys_get_temp_dir() . '/tappet-webpack-cache-test-' . uniqid(more_entropy: true);
+
+        $command = sprintf(
+            'TAPPET_TEST_WEBPACK_CACHE_DIR=%s %s/vendor/bin/tappet --project %s run my-suite --base-url=%s --api-base-url %s --api-key test-api-key 2>&1',
+            escapeshellarg($webpackCacheDirectory),
+            escapeshellarg($packageRoot),
+            escapeshellarg($packageRoot . '/tests/Functional/Fixtures/MyTestApp/test'),
+            escapeshellarg('http://localhost:' . $this->webServerPort),
+            escapeshellarg('http://localhost:' . $this->webServerPort),
+        );
+
+        $output = [];
+        $exitCode = 0;
+
+        try {
+            exec($command, $output, $exitCode);
+            $allOutput = implode("\n", $output);
+
+            static::assertSame(
+                0,
+                $exitCode,
+                sprintf(
+                    "Tappet binary exited with code %d.\nOutput:\n%s",
+                    $exitCode,
+                    $allOutput,
+                ),
+            );
+            static::assertStringContainsString('All specs passed!', $allOutput);
+
+            // Confirms the env var actually reached the Webpack preprocessor (src/ts/cypress/plugin/
+            // index.ts) and was used, rather than just asserting the run passed (which would pass
+            // regardless of whether caching was actually wired up).
+            static::assertDirectoryExists($webpackCacheDirectory);
+            $cacheFiles = glob($webpackCacheDirectory . '/*');
+            static::assertNotEmpty($cacheFiles, 'Expected webpack to have written filesystem cache entries.');
+        } finally {
+            $this->rimrafDescendantsOf($webpackCacheDirectory);
+        }
+    }
+
     /**
      * Deletes the fixture app's PHP session file (fixed session ID "tappet-test", shared across the
      * cookie-less cy.task(...) HTTP calls - see web/index.php) so that state from a previous run of this

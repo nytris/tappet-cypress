@@ -24,4 +24,16 @@ use Tappet\Cypress\Tests\AbstractTestCase;
  */
 abstract class AbstractFunctionalTestCase extends AbstractTestCase
 {
+    protected function rimrafDescendantsOf(string $path): void
+    {
+        foreach (glob($path . '/**') as $subPath) {
+            if (is_file($subPath)) {
+                unlink($subPath);
+            } else {
+                $this->rimrafDescendantsOf($subPath);
+
+                rmdir($subPath);
+            }
+        }
+    }
 }

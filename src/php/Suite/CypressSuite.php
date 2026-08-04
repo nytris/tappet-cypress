@@ -68,7 +68,8 @@ class CypressSuite implements EventListenerRegistryInterface, SuiteInterface
 
     public function __construct(
         private readonly string $cypressRoot,
-        private readonly AdapterInterface $adapter = new DefaultAdapter()
+        private readonly AdapterInterface $adapter = new DefaultAdapter(),
+        private readonly ?string $webpackCacheDirectory = null
     ) {
         $eventDispatcher = $adapter->getEventDispatcher();
 
@@ -218,6 +219,10 @@ class CypressSuite implements EventListenerRegistryInterface, SuiteInterface
 
         if ($filter !== null) {
             $envVars['tappetFilter'] = $filter;
+        }
+
+        if ($this->webpackCacheDirectory !== null) {
+            $envVars['tappetWebpackCacheDirectory'] = $this->webpackCacheDirectory;
         }
 
         $envVarsString = implode(',', array_map(function ($key, $value) {

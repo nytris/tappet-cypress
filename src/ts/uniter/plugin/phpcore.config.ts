@@ -298,13 +298,6 @@ export const addons: UniterAddon[] = [
                                     addToCypressCommandQueueAllowingReentry(
                                         async () => {
                                             await transitionLog?.reset();
-
-                                            // Perform cleanup inside Mocha beforeEach so that it happens regardless of errors.
-                                            await (
-                                                modelRepository as {
-                                                    purge(): unknown;
-                                                }
-                                            ).purge();
                                         },
                                     );
                                 });
@@ -321,7 +314,24 @@ export const addons: UniterAddon[] = [
                                         description,
                                         () => {
                                             addToCypressCommandQueueAllowingReentry(
-                                                () => scenario.perform(),
+                                                async () => {
+                                                    /*
+                                                     * Purge fixtures once this scenario finishes, pass or
+                                                     * fail, rather than in the next test's beforeEach() -
+                                                     * relying on the *next* test's beforeEach() would never
+                                                     * purge the fixtures loaded by the very last scenario to
+                                                     * run in the whole suite, since there is no next test.
+                                                     */
+                                                    try {
+                                                        await scenario.perform();
+                                                    } finally {
+                                                        await (
+                                                            modelRepository as {
+                                                                purge(): unknown;
+                                                            }
+                                                        ).purge();
+                                                    }
+                                                },
                                             );
                                         },
                                     );

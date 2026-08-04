@@ -111,17 +111,6 @@ describe('cypress/plugin/index', () => {
                 );
             });
 
-            it('should return the config with experimentalInteractiveRunEvents enabled, so that after:run also fires when closing a project in Cypress "open" mode', () => {
-                const plugin = createTestPlugin();
-
-                const result = plugin(on, validConfig);
-
-                expect(result).to.have.property(
-                    'experimentalInteractiveRunEvents',
-                    true,
-                );
-            });
-
             it('should throw if tappetApiBaseUrl is not set in config.env', () => {
                 const plugin = createPlugin(
                     stubPreprocessorFactory,
@@ -432,6 +421,64 @@ describe('cypress/plugin/index', () => {
                 });
             });
 
+            describe('webpack cache directory', () => {
+                function getWebpackOptions(env: Record<string, unknown> = {}): {
+                    plugins: unknown[];
+                    cache?: unknown;
+                } {
+                    createPlugin(
+                        stubPreprocessorFactory,
+                        StubUniterPlugin as unknown as new () => object,
+                    )(on, {
+                        env: {
+                            tappetApiBaseUrl: 'https://my-app.example.com',
+                            tappetApiKey: 'test-key',
+                            ...env,
+                        },
+                    });
+
+                    return stubPreprocessorFactory.firstCall.args[0]
+                        .webpackOptions;
+                }
+
+                it('should not set a cache option when tappetWebpackCacheDirectory is not set', () => {
+                    const webpackOptions = getWebpackOptions();
+
+                    expect(webpackOptions).not.to.have.property('cache');
+                });
+
+                it('should set a filesystem cache option when tappetWebpackCacheDirectory is set', () => {
+                    const webpackOptions = getWebpackOptions({
+                        tappetWebpackCacheDirectory: '/path/to/cache',
+                    });
+
+                    expect(webpackOptions.cache).to.have.property(
+                        'type',
+                        'filesystem',
+                    );
+                    expect(webpackOptions.cache).to.have.property(
+                        'cacheDirectory',
+                        '/path/to/cache',
+                    );
+                });
+
+                it("should include this package's own package.json as a build dependency, so an upgrade invalidates the cache", () => {
+                    const webpackOptions = getWebpackOptions({
+                        tappetWebpackCacheDirectory: '/path/to/cache',
+                    });
+
+                    const cache = webpackOptions.cache as {
+                        buildDependencies: Record<string, string[]>;
+                    };
+                    expect(
+                        cache.buildDependencies.tappetCypress,
+                    ).to.have.length(1);
+                    expect(cache.buildDependencies.tappetCypress[0]).to.match(
+                        /package\.json$/,
+                    );
+                });
+            });
+
             describe('deferred purge', () => {
                 type PurgeTaskHandlers = {
                     tappetCypressPurgeFixtures: (args: {
@@ -621,6 +668,25 @@ describe('cypress/plugin/index', () => {
 
                     const options = stubRequest.firstCall.args[1];
                     expect(JSON.parse(options.body)).to.deep.equal([model]);
+                });
+
+                it('should send an empty array if the after:run handler is somehow invoked a second time', async () => {
+                    const { handlers, localOn } = setup();
+
+                    await handlers.tappetCypressPurgeFixtures({
+                        modelsToPurge: [],
+                        modelsToDeferredPurge: [{ fixture: 'f', model: 'm' }],
+                    });
+                    stubRequest.resetHistory();
+
+                    const afterRunHandler = getAfterRunHandler(localOn);
+                    await afterRunHandler();
+                    await afterRunHandler();
+
+                    expect(stubRequest).to.have.been.calledTwice;
+                    expect(
+                        JSON.parse(stubRequest.secondCall.args[1].body),
+                    ).to.deep.equal([]);
                 });
 
                 it('should log the error and rethrow when the after:run DELETE request fails', async () => {

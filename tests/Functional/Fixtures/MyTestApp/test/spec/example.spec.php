@@ -44,7 +44,6 @@ Tappet::describe('User Management -> User', [
                 'john-user' => new UserFixture('John', 'Doe', 'john.doe@example.com'),
             ]),
             new LogInAs('adam-admin'),
-            new ExpectNewPage(new UserListPage()),
             new OpenPage(new UserEditPage('john-user'))
         )
         ->act(
@@ -64,7 +63,6 @@ Tappet::describe('User Management -> User', [
                 'john-user' => new UserFixture('John', 'Doe', 'john.doe@example.com'),
             ]),
             new LogInAs('adam-admin'),
-            new ExpectNewPage(new UserListPage()),
             new OpenPage(new UserEditPage('john-user'))
         )
         ->act(
@@ -86,7 +84,6 @@ Tappet::describe('User Management -> User', [
                 'john-user' => new UserFixture('John', 'Doe', 'john.doe@example.com'),
             ]),
             new LogInAs('adam-admin'),
-            new ExpectNewPage(new UserListPage()),
             new OpenPage(new UserEditPage('john-user'))
         )
         ->act(
@@ -106,8 +103,7 @@ Tappet::describe('User Management -> User List', [
                 'adam-admin' => new UserFixture('Adam', 'Admin', 'adam.admin@example.com'),
                 'john-user' => new UserFixture('John', 'Doe', 'john.doe@example.com'),
             ]),
-            new LogInAs('adam-admin'),
-            new ExpectNewPage(new UserListPage())
+            new LogInAs('adam-admin')
         )
         ->assert(
             new ExpectList('user-list', [
@@ -135,8 +131,7 @@ Tappet::describe('User Management -> Modal', [
             new LoadMultipleFixtures([
                 'adam-admin' => new UserFixture('Adam', 'Admin', 'adam.admin@example.com'),
             ]),
-            new LogInAs('adam-admin'),
-            new ExpectNewPage(new UserListPage())
+            new LogInAs('adam-admin')
         )
         ->act(
             new Enact('open-add-user-modal'),

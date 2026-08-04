@@ -6,6 +6,7 @@
  * Released under the MIT license.
  * https://github.com/nytris/tappet-cypress/raw/main/MIT-LICENSE.txt
  */
+import path from 'path';
 import { Agent, request } from 'undici';
 import UniterPlugin from 'webpack-uniter-plugin';
 
@@ -15,8 +16,21 @@ import UniterPlugin from 'webpack-uniter-plugin';
 export type WebpackPreprocessorFactory = (options: {
     webpackOptions: {
         plugins: unknown[];
+        cache?: {
+            type: 'filesystem';
+            cacheDirectory: string;
+            buildDependencies: Record<string, string[]>;
+        };
     };
 }) => unknown;
+
+/**
+ * This package's own `package.json`, whose `version` field changes on every release -
+ * included as a webpack build dependency so that upgrading `@tappet/cypress` invalidates
+ * any previously persisted Webpack filesystem cache, rather than serving stale bundles
+ * compiled by an older version of this plugin/loader chain.
+ */
+const ownPackageJsonPath = path.join(__dirname, '..', '..', 'package.json');
 
 /**
  * Type of the Cypress `on` event registration function.
@@ -28,7 +42,6 @@ export type CypressOnFunction = (event: string, handler: unknown) => void;
  */
 export interface CypressConfig {
     env?: Record<string, unknown>;
-    experimentalInteractiveRunEvents?: boolean;
     hosts?: Record<string, string>;
 }
 
@@ -114,11 +127,25 @@ export function createPlugin(
             });
         };
 
+        const webpackCacheDirectory = config.env
+            ?.tappetWebpackCacheDirectory as string | undefined;
+
         on(
             'file:preprocessor',
             webpackPreprocessor({
                 webpackOptions: {
                     plugins: [new UniterPluginCtor()],
+                    ...(webpackCacheDirectory
+                        ? {
+                              cache: {
+                                  type: 'filesystem',
+                                  cacheDirectory: webpackCacheDirectory,
+                                  buildDependencies: {
+                                      tappetCypress: [ownPackageJsonPath],
+                                  },
+                              },
+                          }
+                        : {}),
                 },
             }),
         );
@@ -148,15 +175,14 @@ export function createPlugin(
 
         /*
          * Purges any fixtures enqueued via tappetCypressPurgeFixtures' `modelsToDeferredPurge`,
-         * once the whole Cypress run finishes - once for "run" mode, or once per project close for
-         * "open" mode (see the experimentalInteractiveRunEvents flag returned below) - rather than
-         * after every scenario. Cypress explicitly awaits the promise returned from an "after:run"
-         * handler before it exits, allowing async work such as the web request to complete.
+         * once the whole Cypress run finishes, rather than after every scenario. Clears the queue
+         * first so that a repeat call is a harmless no-op rather than re-sending the same models.
          */
         on('after:run', async (): Promise<void> => {
             const deferredPurgeFixturesPayload = Array.from(
                 deferredPurgeFixtureModelsByKey.values(),
             );
+            deferredPurgeFixtureModelsByKey.clear();
 
             return mappedRequest(apiBaseUrl + '/.well-known/tappet/fixtures', {
                 dispatcher: httpsAgent,
@@ -331,11 +357,8 @@ export function createPlugin(
             },
         });
 
-        return {
-            // Required so that "after:run" (registered above) also fires for Cypress "open" mode,
-            // when the project is closed, rather than only for "run" mode.
-            experimentalInteractiveRunEvents: true,
-        };
+        // For future use when needing to override/provide Cypress config.
+        return {};
     };
 }
 
@@ -349,8 +372,7 @@ export function createPlugin(
  * module.exports = defineConfig({
  *   e2e: {
  *     setupNodeEvents(on, config) {
- *       // The return here is important - it allows the plugin to apply config overrides
- *       // (currently just enabling experimentalInteractiveRunEvents).
+ *       // The return here is important - it allows the plugin to apply config overrides.
  *       return register(on, config);
  *     },
  *   },
