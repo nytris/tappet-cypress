@@ -29,6 +29,8 @@ use Tappet\Runner\Automation\Matcher\MatcherRegistry;
 use Tappet\Runner\Automation\Matcher\MatcherRegistryInterface;
 use Tappet\Runner\Automation\Region\RegionAssertionRegistry;
 use Tappet\Runner\Automation\Region\RegionAssertionRegistryInterface;
+use Tappet\Runner\Automation\RemoteState\RemoteStateAssertionRegistry;
+use Tappet\Runner\Automation\RemoteState\RemoteStateAssertionRegistryInterface;
 use Tappet\Runner\Automation\State\StateAssertionRegistry;
 use Tappet\Runner\Automation\State\StateAssertionRegistryInterface;
 use Tappet\Runner\Transition\Log\TransitionLogInterface;
@@ -68,6 +70,8 @@ class DefaultAdapter implements AdapterInterface
      */
     private readonly RegionAssertionRegistryInterface $regionAssertionRegistry;
 
+    private readonly RemoteStateAssertionRegistryInterface $remoteStateAssertionRegistry;
+
     /**
      * @var StateAssertionRegistryInterface
      */
@@ -79,6 +83,7 @@ class DefaultAdapter implements AdapterInterface
      * @param InteractionRegistryInterface|null $interactionRegistry
      * @param MatcherRegistryInterface<ContextInterface>|null $matcherRegistry
      * @param RegionAssertionRegistryInterface|null $regionAssertionRegistry
+     * @param RemoteStateAssertionRegistryInterface|null $remoteStateAssertionRegistry
      * @param StateAssertionRegistryInterface|null $stateAssertionRegistry
      * @param EventDispatcherInterface $eventDispatcher
      * @param string $attributePrefix
@@ -89,6 +94,7 @@ class DefaultAdapter implements AdapterInterface
         InteractionRegistryInterface|null $interactionRegistry = null,
         MatcherRegistryInterface|null $matcherRegistry = null,
         RegionAssertionRegistryInterface|null $regionAssertionRegistry = null,
+        RemoteStateAssertionRegistryInterface|null $remoteStateAssertionRegistry = null,
         StateAssertionRegistryInterface|null $stateAssertionRegistry = null,
         private readonly TypeResolverInterface $typeResolver = new TypeResolver(),
         private readonly EventDispatcherInterface $eventDispatcher = new EventDispatcher(),
@@ -103,23 +109,29 @@ class DefaultAdapter implements AdapterInterface
         $this->matcherRegistry = $resolvedMatcherRegistry;
 
         $this->regionAssertionRegistry = $regionAssertionRegistry ?? new RegionAssertionRegistry();
+        $this->remoteStateAssertionRegistry = $remoteStateAssertionRegistry ?? new RemoteStateAssertionRegistry();
         $this->stateAssertionRegistry = $stateAssertionRegistry ?? new StateAssertionRegistry();
     }
 
     /**
      * @inheritDoc
      */
-    public function getAutomation(mixed $cy, TransitionLogInterface $transitionLog): CypressAutomation
-    {
+    public function getAutomation(
+        mixed $cy,
+        TransitionLogInterface $transitionLog,
+        object $remoteStateApi
+    ): CypressAutomation {
         return new CypressAutomation(
             $this->fieldActionRegistry,
             $this->fieldAssertionRegistry,
             $this->interactionRegistry,
             $this->regionAssertionRegistry,
+            $this->remoteStateAssertionRegistry,
             $this->stateAssertionRegistry,
             $this->typeResolver,
             $cy,
             $transitionLog,
+            $remoteStateApi,
             $this->attributePrefix
         );
     }
@@ -170,6 +182,14 @@ class DefaultAdapter implements AdapterInterface
     public function getRegionAssertionRegistry(): RegionAssertionRegistryInterface
     {
         return $this->regionAssertionRegistry;
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function getRemoteStateAssertionRegistry(): RemoteStateAssertionRegistryInterface
+    {
+        return $this->remoteStateAssertionRegistry;
     }
 
     /**

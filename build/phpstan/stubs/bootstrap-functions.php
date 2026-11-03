@@ -57,6 +57,11 @@ function tappet_get_fixture_api_base_url(): string
     throw new LogicException('Stub only.');
 }
 
+function tappet_get_remote_state_api(): object
+{
+    throw new LogicException('Stub only.');
+}
+
 function tappet_get_suite_name(): string
 {
     throw new LogicException('Stub only.');

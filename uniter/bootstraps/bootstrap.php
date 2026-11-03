@@ -37,7 +37,7 @@ $suite = $suiteResolver->resolveSuite(tappet_get_suite_name());
 $transitionLog = new TransitionLog();
 tappet_init_transition_log($transitionLog);
 
-$automation = $suite->getAutomation(tappet_get_cypress_api(), $transitionLog);
+$automation = $suite->getAutomation(tappet_get_cypress_api(), $transitionLog, tappet_get_remote_state_api());
 
 // Dispatch WindowBeforeLoadEvent to plugins whenever the AUT window is about to load.
 tappet_add_window_beforeload_handler(function ($window) use ($suite): void {

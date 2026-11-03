@@ -1,0 +1,7 @@
+# tappet/bundle's own API routes are registered automatically at compile time by
+# RegisterBundleRoutesPass/BundleRouteLoader - no explicit import is needed here.
+
+app_widget_show:
+    path: '/widgets/{id}'
+    methods: ['GET']
+    controller: Tappet\Cypress\Tests\Functional\Fixtures\SymfonyTestApp\src\Controller\WidgetController

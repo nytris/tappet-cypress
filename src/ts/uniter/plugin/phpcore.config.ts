@@ -253,6 +253,23 @@ export const addons: UniterAddon[] = [
                     },
                 );
 
+                environment.defineCoercingFunction(
+                    'tappet_get_remote_state_api',
+                    () => {
+                        return {
+                            fetchRemoteState: async (
+                                handle: string,
+                            ): Promise<string> => {
+                                return await new Promise((resolve) => {
+                                    cy.task('tappetCypressFetchRemoteState', {
+                                        handle,
+                                    }).then(resolve);
+                                });
+                            },
+                        };
+                    },
+                );
+
                 const filterString = Cypress.env('tappetFilter') as
                     string | null | undefined;
                 const filterRegex = filterString

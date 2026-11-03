@@ -19,11 +19,13 @@ use Tappet\Runner\Action\FieldActionInterface;
 use Tappet\Runner\Action\InteractionInterface;
 use Tappet\Runner\Assertion\FieldAssertionInterface;
 use Tappet\Runner\Assertion\RegionAssertionInterface;
+use Tappet\Runner\Assertion\RemoteStateAssertionInterface;
 use Tappet\Runner\Assertion\StateAssertionInterface;
 use Tappet\Runner\Automation\Field\FieldActionRegistryInterface;
 use Tappet\Runner\Automation\Field\FieldAssertionRegistryInterface;
 use Tappet\Runner\Automation\Interaction\InteractionRegistryInterface;
 use Tappet\Runner\Automation\Region\RegionAssertionRegistryInterface;
+use Tappet\Runner\Automation\RemoteState\RemoteStateAssertionRegistryInterface;
 use Tappet\Runner\Automation\State\StateAssertionRegistryInterface;
 use Tappet\Runner\Exception\TransitionLogNotEmptyException;
 use Tappet\Runner\Exception\TransitionWaitTimeoutException;
@@ -44,10 +46,12 @@ class CypressAutomation implements CypressAutomationInterface
         private readonly FieldAssertionRegistryInterface $fieldAssertionRegistry,
         private readonly InteractionRegistryInterface $interactionRegistry,
         private readonly RegionAssertionRegistryInterface $regionAssertionRegistry,
+        private readonly RemoteStateAssertionRegistryInterface $remoteStateAssertionRegistry,
         private readonly StateAssertionRegistryInterface $stateAssertionRegistry,
         private readonly TypeResolverInterface $typeResolver,
         private readonly mixed $cy,
         private readonly TransitionLogInterface $transitionLog,
+        private readonly object $remoteStateApi,
         private readonly string $attributePrefix
     ) {
     }
@@ -93,6 +97,16 @@ class CypressAutomation implements CypressAutomationInterface
 
             $transitionLog->consumeTransition($transition);
         });
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function fetchRemoteState(string $remoteStateHandle): mixed
+    {
+        $response = $this->remoteStateApi->fetchRemoteState($remoteStateHandle);
+
+        return unserialize($response);
     }
 
     /**
@@ -199,6 +213,25 @@ class CypressAutomation implements CypressAutomationInterface
 
                 $regionAssertionRegistry->handleRegionAssertion($regionType, $assertion);
             });
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function performRemoteStateAssertion(RemoteStateAssertionInterface $assertion): void
+    {
+        /*
+         * Unlike the DOM-based perform*Assertion() methods above, there is no Cypress chainable
+         * (e.g. from cy.get(...)) to sequence this after, so this is dispatched directly rather
+         * than wrapped in cy.then(...). A remote state assertion handler's callback typically
+         * awaits a further async call (fetchRemoteState(), via cy.task()) - wrapping that in a
+         * plain cy.then(...) here would deadlock the Cypress command queue against that pending
+         * promise (see addToCypressCommandQueueAllowingReentry() in phpcore.config.ts). Ordering
+         * relative to prior steps is still preserved because the caller (Environment) has already
+         * awaited those steps' own Cypress commands (e.g. via assertCurrentTransition()) before
+         * this method is ever invoked.
+         */
+        $this->remoteStateAssertionRegistry->handleRemoteStateAssertion($assertion);
     }
 
     /**

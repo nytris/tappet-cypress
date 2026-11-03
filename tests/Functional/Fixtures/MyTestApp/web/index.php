@@ -65,12 +65,15 @@ if ($method === 'POST'
     /** @var UserFixture $fixture */
     $id = $_SESSION['next_id']++;
     $_SESSION['users'][$id] = [
-        'id'         => $id,
-        'first_name' => $fixture->getFirstName(),
-        'last_name'  => $fixture->getLastName(),
-        'email'      => $fixture->getEmail(),
-        'role'       => 'user',
-        'status'     => 'active',
+        'id'               => $id,
+        'first_name'       => $fixture->getFirstName(),
+        'last_name'        => $fixture->getLastName(),
+        'email'            => $fixture->getEmail(),
+        'role'             => 'user',
+        'status'           => 'active',
+        // Deliberately never rendered anywhere in the UI - only fetchable via the
+        // Tappet API's remote state endpoint, for use by a remote state assertion.
+        'activation_token' => 'token-for-' . $fixture->getEmail(),
     ];
 
     $model = new UserModel($id);
@@ -102,12 +105,15 @@ if ($method === 'POST' && $uri === '/.well-known/tappet/fixtures') {
         /** @var UserFixture $fixture */
         $id = $_SESSION['next_id']++;
         $_SESSION['users'][$id] = [
-            'id'         => $id,
-            'first_name' => $fixture->getFirstName(),
-            'last_name'  => $fixture->getLastName(),
-            'email'      => $fixture->getEmail(),
-            'role'       => 'user',
-            'status'     => 'active',
+            'id'               => $id,
+            'first_name'       => $fixture->getFirstName(),
+            'last_name'        => $fixture->getLastName(),
+            'email'            => $fixture->getEmail(),
+            'role'             => 'user',
+            'status'           => 'active',
+            // Deliberately never rendered anywhere in the UI - only fetchable via the
+            // Tappet API's remote state endpoint, for use by a remote state assertion.
+            'activation_token' => 'token-for-' . $fixture->getEmail(),
         ];
         $models[$handle] = new UserModel($id);
     }
@@ -133,6 +139,31 @@ if ($method === 'DELETE' && $uri === '/.well-known/tappet/fixtures') {
     }
     $_SESSION['logged_in_user_id'] = null;
     http_response_code(204);
+    exit;
+}
+
+// ─── Tappet API route: fetch remote state. ──────────────────────────────────────────
+if ($method === 'GET' && preg_match('#^/\.well-known/tappet/remote-state/(.+)$#', $uri, $m)) {
+    if (!tappetAuthorised()) {
+        http_response_code(401);
+        print 'Unauthorised';
+        exit;
+    }
+
+    $handle = urldecode($m[1]);
+
+    if ($handle !== 'user-activation-token') {
+        http_response_code(404);
+        print 'Unknown remote state handle';
+        exit;
+    }
+
+    $loggedInId = $_SESSION['logged_in_user_id'] ?? null;
+    $user = $loggedInId !== null ? ($_SESSION['users'][$loggedInId] ?? null) : null;
+    $value = $user['activation_token'] ?? null;
+
+    header('Content-Type: application/json');
+    print json_encode(['serialisation' => serialize($value)], flags: JSON_THROW_ON_ERROR);
     exit;
 }
 

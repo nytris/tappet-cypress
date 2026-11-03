@@ -94,6 +94,7 @@ export function createPlugin(
     UniterPluginCtor: typeof UniterPlugin,
     requestFn: typeof request = request,
     AgentCtor: typeof Agent = Agent,
+    console: typeof globalThis.console = globalThis.console,
 ): (on: CypressOnFunction, config?: CypressConfig) => CypressConfig {
     return (
         on: CypressOnFunction,
@@ -307,6 +308,38 @@ export function createPlugin(
                 loadedMultipleFixturesByKey.set(cacheKey, serialisation);
 
                 return serialisation;
+            },
+            async tappetCypressFetchRemoteState({
+                handle,
+            }: {
+                handle: string;
+            }) {
+                const response = await mappedRequest(
+                    apiBaseUrl +
+                        '/.well-known/tappet/remote-state/' +
+                        encodeURIComponent(handle),
+                    {
+                        dispatcher: httpsAgent,
+                        method: 'GET',
+                        headers: {
+                            Authorization: `Bearer ${apiKey}`,
+                        },
+                    },
+                ).catch((error) => {
+                    // Intentionally log details to the host console for inspection.
+                    console.error(
+                        'tappetCypressFetchRemoteState request() ERROR:',
+                    );
+                    console.dir(error);
+
+                    throw error;
+                });
+
+                // Response value's serialisation payload will be JSON-encoded
+                // to support special characters.
+                return (
+                    (await response.body.json()) as { serialisation: string }
+                ).serialisation;
             },
             async tappetCypressPurgeFixtures({
                 modelsToPurge,

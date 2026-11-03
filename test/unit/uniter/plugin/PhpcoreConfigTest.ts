@@ -244,13 +244,13 @@ describe('uniter/plugin/phpcore.config', () => {
             );
         });
 
-        it('should register twelve coercing functions in total()', () => {
+        it('should register thirteen coercing functions in total()', () => {
             addon.initialiserGroups[0]({ environment });
 
             expect(
                 (environment.defineCoercingFunction as sinon.SinonStub)
                     .callCount,
-            ).to.equal(12);
+            ).to.equal(13);
         });
 
         describe('tappet_get_fixture_api_base_url() handler', () => {

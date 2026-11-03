@@ -22,6 +22,7 @@ use Tappet\Runner\Automation\Field\FieldAssertionRegistryInterface;
 use Tappet\Runner\Automation\Interaction\InteractionRegistryInterface;
 use Tappet\Runner\Automation\Matcher\MatcherRegistryInterface;
 use Tappet\Runner\Automation\Region\RegionAssertionRegistryInterface;
+use Tappet\Runner\Automation\RemoteState\RemoteStateAssertionRegistryInterface;
 use Tappet\Runner\Automation\State\StateAssertionRegistryInterface;
 use Tappet\Runner\Transition\Log\TransitionLogInterface;
 
@@ -38,7 +39,11 @@ interface AdapterInterface
     /**
      * Fetches the Cypress automation implementation.
      */
-    public function getAutomation(mixed $cy, TransitionLogInterface $transitionLog): CypressAutomationInterface;
+    public function getAutomation(
+        mixed $cy,
+        TransitionLogInterface $transitionLog,
+        object $remoteStateApi
+    ): CypressAutomationInterface;
 
     /**
      * Fetches the event dispatcher.
@@ -79,6 +84,13 @@ interface AdapterInterface
      * @return RegionAssertionRegistryInterface
      */
     public function getRegionAssertionRegistry(): RegionAssertionRegistryInterface;
+
+    /**
+     * Fetches the registry of remote state assertion handlers.
+     *
+     * @return RemoteStateAssertionRegistryInterface
+     */
+    public function getRemoteStateAssertionRegistry(): RemoteStateAssertionRegistryInterface;
 
     /**
      * Fetches the registry of state assertion handlers.

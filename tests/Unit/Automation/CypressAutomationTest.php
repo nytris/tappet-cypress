@@ -21,10 +21,12 @@ use Tappet\Cypress\Automation\Resolver\TypeResolverInterface;
 use Tappet\Cypress\Tests\AbstractTestCase;
 use Tappet\Runner\Action\FieldActionInterface;
 use Tappet\Runner\Assertion\FieldAssertionInterface;
+use Tappet\Runner\Assertion\RemoteStateAssertionInterface;
 use Tappet\Runner\Automation\Field\FieldActionRegistryInterface;
 use Tappet\Runner\Automation\Field\FieldAssertionRegistryInterface;
 use Tappet\Runner\Automation\Interaction\InteractionRegistryInterface;
 use Tappet\Runner\Automation\Region\RegionAssertionRegistryInterface;
+use Tappet\Runner\Automation\RemoteState\RemoteStateAssertionRegistryInterface;
 use Tappet\Runner\Automation\State\StateAssertionRegistryInterface;
 use Tappet\Runner\Exception\TransitionLogNotEmptyException;
 use Tappet\Runner\Exception\TransitionWaitTimeoutException;
@@ -65,6 +67,14 @@ class CypressAutomationTest extends AbstractTestCase
      */
     private RegionAssertionRegistryInterface&MockInterface $regionAssertionRegistry;
     /**
+     * A Uniter FFI wrapper of the remote state API, stubbed as an anonymous mock.
+     */
+    private mixed $remoteStateApi;
+    /**
+     * @var RemoteStateAssertionRegistryInterface&MockInterface
+     */
+    private RemoteStateAssertionRegistryInterface&MockInterface $remoteStateAssertionRegistry;
+    /**
      * @var StateAssertionRegistryInterface&MockInterface
      */
     private StateAssertionRegistryInterface&MockInterface $stateAssertionRegistry;
@@ -80,6 +90,8 @@ class CypressAutomationTest extends AbstractTestCase
         $this->fieldAssertionRegistry = mock(FieldAssertionRegistryInterface::class);
         $this->interactionRegistry = mock(InteractionRegistryInterface::class);
         $this->regionAssertionRegistry = mock(RegionAssertionRegistryInterface::class);
+        $this->remoteStateApi = mock();
+        $this->remoteStateAssertionRegistry = mock(RemoteStateAssertionRegistryInterface::class);
         $this->stateAssertionRegistry = mock(StateAssertionRegistryInterface::class);
         $this->transitionLog = mock(TransitionLogInterface::class);
         $this->typeResolver = mock(TypeResolverInterface::class);
@@ -89,10 +101,12 @@ class CypressAutomationTest extends AbstractTestCase
             $this->fieldAssertionRegistry,
             $this->interactionRegistry,
             $this->regionAssertionRegistry,
+            $this->remoteStateAssertionRegistry,
             $this->stateAssertionRegistry,
             $this->typeResolver,
             $this->cy,
             $this->transitionLog,
+            $this->remoteStateApi,
             'ui'
         );
     }
@@ -326,10 +340,12 @@ class CypressAutomationTest extends AbstractTestCase
             $this->fieldAssertionRegistry,
             $this->interactionRegistry,
             $this->regionAssertionRegistry,
+            $this->remoteStateAssertionRegistry,
             $this->stateAssertionRegistry,
             $this->typeResolver,
             $this->cy,
             $this->transitionLog,
+            $this->remoteStateApi,
             'my-app'
         );
 
@@ -388,10 +404,12 @@ class CypressAutomationTest extends AbstractTestCase
             $this->fieldAssertionRegistry,
             $this->interactionRegistry,
             $this->regionAssertionRegistry,
+            $this->remoteStateAssertionRegistry,
             $this->stateAssertionRegistry,
             $this->typeResolver,
             $this->cy,
             $this->transitionLog,
+            $this->remoteStateApi,
             'my-app'
         );
         $action = mock(FieldActionInterface::class);
@@ -452,10 +470,12 @@ class CypressAutomationTest extends AbstractTestCase
             $this->fieldAssertionRegistry,
             $this->interactionRegistry,
             $this->regionAssertionRegistry,
+            $this->remoteStateAssertionRegistry,
             $this->stateAssertionRegistry,
             $this->typeResolver,
             $this->cy,
             $this->transitionLog,
+            $this->remoteStateApi,
             'my-app'
         );
         $interaction = new Enact('submit-button');
@@ -515,10 +535,12 @@ class CypressAutomationTest extends AbstractTestCase
             $this->fieldAssertionRegistry,
             $this->interactionRegistry,
             $this->regionAssertionRegistry,
+            $this->remoteStateAssertionRegistry,
             $this->stateAssertionRegistry,
             $this->typeResolver,
             $this->cy,
             $this->transitionLog,
+            $this->remoteStateApi,
             'my-app'
         );
         $assertion = new ExpectRegionContains('flash-message', 'Saved.');
@@ -531,6 +553,30 @@ class CypressAutomationTest extends AbstractTestCase
             ->andReturn($getChain);
 
         $automation->performRegionAssertion($assertion);
+    }
+
+    public function testPerformRemoteStateAssertionDispatchesDirectlyToTheRegistryWithoutUsingCyThen(): void
+    {
+        $assertion = mock(RemoteStateAssertionInterface::class);
+
+        $this->cy->expects('then')->never();
+        $this->remoteStateAssertionRegistry->expects()
+            ->handleRemoteStateAssertion($assertion)
+            ->once();
+
+        $this->automation->performRemoteStateAssertion($assertion);
+    }
+
+    public function testFetchRemoteStateCallsRemoteStateApiWithTheGivenHandle(): void
+    {
+        $this->remoteStateApi->expects()
+            ->fetchRemoteState('user-activation-token')
+            ->once()
+            ->andReturn(serialize('abc123'));
+
+        $result = $this->automation->fetchRemoteState('user-activation-token');
+
+        static::assertSame('abc123', $result);
     }
 
     public function testPerformStateAssertionCallsCyGetWithStateHandleSelector(): void
@@ -596,10 +642,12 @@ class CypressAutomationTest extends AbstractTestCase
             $this->fieldAssertionRegistry,
             $this->interactionRegistry,
             $this->regionAssertionRegistry,
+            $this->remoteStateAssertionRegistry,
             $this->stateAssertionRegistry,
             $this->typeResolver,
             $this->cy,
             $this->transitionLog,
+            $this->remoteStateApi,
             'my-app'
         );
         $assertion = new ExpectState('loading-spinner');
@@ -670,10 +718,12 @@ class CypressAutomationTest extends AbstractTestCase
             $this->fieldAssertionRegistry,
             $this->interactionRegistry,
             $this->regionAssertionRegistry,
+            $this->remoteStateAssertionRegistry,
             $this->stateAssertionRegistry,
             $this->typeResolver,
             $this->cy,
             $this->transitionLog,
+            $this->remoteStateApi,
             'my-app'
         );
         $assertion = mock(FieldAssertionInterface::class);

@@ -26,6 +26,12 @@ use Tappet\Runner\Automation\AutomationInterface;
 interface CypressAutomationInterface extends AutomationInterface
 {
     /**
+     * Fetches the remote state value for the given handle from the backend
+     * via the Tappet API's remote state endpoint.
+     */
+    public function fetchRemoteState(string $remoteStateHandle): mixed;
+
+    /**
      * Fetches the prefix used for UI automation `data-` attributes.
      */
     public function getAttributePrefix(): string;
