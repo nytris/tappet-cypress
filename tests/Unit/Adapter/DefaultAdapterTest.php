@@ -171,8 +171,9 @@ class DefaultAdapterTest extends AbstractTestCase
     {
         $cy = mock();
         $transitionLog = mock(TransitionLogInterface::class);
+        $remoteStateApi = mock();
 
-        $automation = $this->adapter->getAutomation($cy, $transitionLog);
+        $automation = $this->adapter->getAutomation($cy, $transitionLog, $remoteStateApi);
 
         static::assertInstanceOf(CypressAutomation::class, $automation);
     }
@@ -181,8 +182,9 @@ class DefaultAdapterTest extends AbstractTestCase
     {
         $cy = mock();
         $transitionLog = mock(TransitionLogInterface::class);
+        $remoteStateApi = mock();
 
-        $automation = $this->adapter->getAutomation($cy, $transitionLog);
+        $automation = $this->adapter->getAutomation($cy, $transitionLog, $remoteStateApi);
 
         static::assertSame($cy, $automation->getCy());
     }
@@ -191,8 +193,9 @@ class DefaultAdapterTest extends AbstractTestCase
     {
         $cy = mock();
         $transitionLog = mock(TransitionLogInterface::class);
+        $remoteStateApi = mock();
 
-        $automation = $this->adapter->getAutomation($cy, $transitionLog);
+        $automation = $this->adapter->getAutomation($cy, $transitionLog, $remoteStateApi);
 
         static::assertSame('ui', $automation->getAttributePrefix());
     }
@@ -202,8 +205,9 @@ class DefaultAdapterTest extends AbstractTestCase
         $adapter = new DefaultAdapter(attributePrefix: 'my-app');
         $cy = mock();
         $transitionLog = mock(TransitionLogInterface::class);
+        $remoteStateApi = mock();
 
-        $automation = $adapter->getAutomation($cy, $transitionLog);
+        $automation = $adapter->getAutomation($cy, $transitionLog, $remoteStateApi);
 
         static::assertSame('my-app', $automation->getAttributePrefix());
     }
@@ -214,6 +218,7 @@ class DefaultAdapterTest extends AbstractTestCase
         $adapter = new DefaultAdapter(fieldActionRegistry: $fieldActionRegistry);
         $cy = mock();
         $transitionLog = mock(TransitionLogInterface::class);
+        $remoteStateApi = mock();
         $action = mock(FieldActionInterface::class);
         $action->allows('getFieldHandle')->andReturn('username');
         $field = mock();
@@ -229,7 +234,7 @@ class DefaultAdapterTest extends AbstractTestCase
             ->handleFieldAction(Mockery::any(), $action)
             ->once();
 
-        $automation = $adapter->getAutomation($cy, $transitionLog);
+        $automation = $adapter->getAutomation($cy, $transitionLog, $remoteStateApi);
 
         $automation->performFieldAction($action);
     }

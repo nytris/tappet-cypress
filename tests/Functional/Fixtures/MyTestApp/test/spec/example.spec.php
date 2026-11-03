@@ -15,6 +15,7 @@ use Tappet\Cypress\Tests\Functional\Fixtures\MyTestApp\test\app\Arrangement\LogI
 use Tappet\Cypress\Tests\Functional\Fixtures\MyTestApp\test\app\Assertion\ExpectFlash;
 use Tappet\Cypress\Tests\Functional\Fixtures\MyTestApp\test\app\Assertion\ExpectModalClosed;
 use Tappet\Cypress\Tests\Functional\Fixtures\MyTestApp\test\app\Assertion\ExpectModalOpen;
+use Tappet\Cypress\Tests\Functional\Fixtures\MyTestApp\test\app\Assertion\ExpectUserActivationToken;
 use Tappet\Cypress\Tests\Functional\Fixtures\MyTestApp\test\app\Fixture\UserFixture;
 use Tappet\Cypress\Tests\Functional\Fixtures\MyTestApp\test\app\Matcher\Badge;
 use Tappet\Cypress\Tests\Functional\Fixtures\MyTestApp\test\app\Page\UserEditPage;
@@ -122,6 +123,19 @@ Tappet::describe('User Management -> User List', [
                     'status' => new Badge('active'),
                 ],
             ])
+        ),
+]);
+
+Tappet::describe('User Management -> Remote State', [
+    Tappet::it('activation token (never surfaced in the UI) can be asserted via a remote state assertion')
+        ->arrange(
+            new LoadMultipleFixtures([
+                'adam-admin' => new UserFixture('Adam', 'Admin', 'adam.admin@example.com'),
+            ]),
+            new LogInAs('adam-admin')
+        )
+        ->assert(
+            new ExpectUserActivationToken(new ExactText('token-for-adam.admin@example.com'))
         ),
 ]);
 

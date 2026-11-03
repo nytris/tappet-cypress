@@ -30,6 +30,7 @@ use Tappet\Cypress\Automation\Field\TextFieldAssertionHandler;
 use Tappet\Cypress\Automation\Interaction\ButtonInteractionHandler;
 use Tappet\Cypress\Automation\Interaction\HyperlinkInteractionHandler;
 use Tappet\Cypress\Automation\Matcher\TextMatchHandler;
+use Tappet\Cypress\Automation\Matcher\ValueMatchHandler;
 use Tappet\Cypress\Automation\Region\ListRegionAssertionHandler;
 use Tappet\Cypress\Automation\Region\TableRegionAssertionHandler;
 use Tappet\Cypress\Automation\Region\TextRegionAssertionHandler;
@@ -39,6 +40,7 @@ use Tappet\Cypress\Event\FieldAssertionInitEvent;
 use Tappet\Cypress\Event\InteractionInitEvent;
 use Tappet\Cypress\Event\MatchHandlerInitEvent;
 use Tappet\Cypress\Event\RegionAssertionInitEvent;
+use Tappet\Cypress\Event\RemoteStateAssertionInitEvent;
 use Tappet\Cypress\Event\StateAssertionInitEvent;
 use Tappet\Runner\Transition\Log\TransitionLogInterface;
 use Tappet\Suite\Cli\CliOption;
@@ -101,6 +103,7 @@ class CypressSuite implements EventListenerRegistryInterface, SuiteInterface
 
         $eventDispatcher->addEventListener(MatchHandlerInitEvent::class, function (MatchHandlerInitEvent $event): void {
             $event->registerMatchHandler('default', new TextMatchHandler($event->getAutomation()));
+            $event->registerMatchHandler('value', new ValueMatchHandler($event->getAutomation()));
         });
 
         $eventDispatcher->addEventListener(RegionAssertionInitEvent::class, function (RegionAssertionInitEvent $event): void {
@@ -115,6 +118,9 @@ class CypressSuite implements EventListenerRegistryInterface, SuiteInterface
         $eventDispatcher->addEventListener(StateAssertionInitEvent::class, function (StateAssertionInitEvent $event): void {
             $event->registerStateAssertionHandler('exists', new ExistsStateAssertionHandler($event->getAutomation()));
         });
+
+        // No built-in remote state assertion handlers are registered here - remote state
+        // assertions are entirely custom per consuming application (see RemoteStateAssertionInitEvent).
     }
 
     /**
@@ -144,9 +150,12 @@ class CypressSuite implements EventListenerRegistryInterface, SuiteInterface
     /**
      * Fetches the implementation of the Cypress automation.
      */
-    public function getAutomation(mixed $cy, TransitionLogInterface $transitionLog): CypressAutomationInterface
-    {
-        $automation = $this->adapter->getAutomation($cy, $transitionLog);
+    public function getAutomation(
+        mixed $cy,
+        TransitionLogInterface $transitionLog,
+        object $remoteStateApi
+    ): CypressAutomationInterface {
+        $automation = $this->adapter->getAutomation($cy, $transitionLog, $remoteStateApi);
         $eventDispatcher = $this->adapter->getEventDispatcher();
 
         foreach ($this->plugins as $plugin) {
@@ -165,6 +174,7 @@ class CypressSuite implements EventListenerRegistryInterface, SuiteInterface
         $eventDispatcher->dispatch(new InteractionInitEvent($this->adapter, $automation));
         $eventDispatcher->dispatch(new MatchHandlerInitEvent($this->adapter, $automation));
         $eventDispatcher->dispatch(new RegionAssertionInitEvent($this->adapter, $automation));
+        $eventDispatcher->dispatch(new RemoteStateAssertionInitEvent($this->adapter, $automation));
         $eventDispatcher->dispatch(new StateAssertionInitEvent($this->adapter, $automation));
 
         return $automation;

@@ -1,0 +1,22 @@
+framework:
+    secret: 'test-secret'
+    router:
+        resource: '%kernel.project_dir%/config/routes.yaml'
+        utf8: true
+
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+
+    Tappet\Cypress\Tests\Functional\Fixtures\SymfonyTestApp\src\Controller\:
+        resource: '../src/Controller/'
+        tags: ['controller.service_arguments']
+
+    Tappet\Cypress\Tests\Functional\Fixtures\SymfonyTestApp\src\FixtureLoader\WidgetFixtureLoader: ~
+
+    Tappet\Cypress\Tests\Functional\Fixtures\SymfonyTestApp\src\RemoteState\WidgetRemoteStateProvider: ~
+
+tappet:
+    enabled: true
+    api_key: 'test-api-key'

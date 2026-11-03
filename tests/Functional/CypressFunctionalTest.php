@@ -106,8 +106,8 @@ class CypressFunctionalTest extends AbstractFunctionalTestCase
                 $allOutput,
             ),
         );
-        // All five scenarios should run and pass because the module description matches the filter.
-        static::assertStringContainsString('5 passing', $allOutput);
+        // All six scenarios should run and pass because the module description matches the filter.
+        static::assertStringContainsString('6 passing', $allOutput);
         static::assertStringNotContainsString('pending', $allOutput);
     }
 
@@ -140,8 +140,8 @@ class CypressFunctionalTest extends AbstractFunctionalTestCase
         );
         // Only the scenario whose description matches the filter should run.
         static::assertStringContainsString('1 passing', $allOutput);
-        // The four non-matching scenarios should be registered as skipped (pending).
-        static::assertStringContainsString('4 pending', $allOutput);
+        // The five non-matching scenarios should be registered as skipped (pending).
+        static::assertStringContainsString('5 pending', $allOutput);
     }
 
     public function testCypressSkipsAllScenariosWhenFilterMatchesNeither(): void
@@ -171,8 +171,8 @@ class CypressFunctionalTest extends AbstractFunctionalTestCase
                 $allOutput,
             ),
         );
-        // All five scenarios should be skipped (pending) since nothing matches the filter.
-        static::assertStringContainsString('5 pending', $allOutput);
+        // All six scenarios should be skipped (pending) since nothing matches the filter.
+        static::assertStringContainsString('6 pending', $allOutput);
     }
 
     public function testCypressFailsWhenPageNavigatesUnexpectedlyDuringActStage(): void

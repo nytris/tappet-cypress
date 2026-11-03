@@ -16,8 +16,10 @@ namespace Tappet\Cypress\Tests\Functional\Fixtures\MyTestApp\test\app\Plugin;
 use Tappet\Common\Event\EventInterface;
 use Tappet\Cypress\Automation\CypressAutomationInterface;
 use Tappet\Cypress\Event\MatchHandlerInitEvent;
+use Tappet\Cypress\Event\RemoteStateAssertionInitEvent;
 use Tappet\Cypress\Event\WindowBeforeLoadEvent;
 use Tappet\Cypress\Tests\Functional\Fixtures\MyTestApp\test\app\Matcher\BadgeMatchHandler;
+use Tappet\Cypress\Tests\Functional\Fixtures\MyTestApp\test\app\RemoteState\UserRemoteStateAssertionHandler;
 use Tappet\Cypress\Tests\Functional\Fixtures\MyTestApp\test\app\Transition\ModalClosedTransition;
 use Tappet\Cypress\Tests\Functional\Fixtures\MyTestApp\test\app\Transition\ModalOpenTransition;
 use Tappet\Suite\Plugin\PluginInterface;
@@ -42,6 +44,12 @@ class TestPlugin implements PluginInterface
             MatchHandlerInitEvent::class => function (EventInterface $event): void {
                 /** @var MatchHandlerInitEvent $event */
                 $event->registerMatchHandler('badge', new BadgeMatchHandler($event->getAutomation()));
+            },
+            RemoteStateAssertionInitEvent::class => function (EventInterface $event): void {
+                /** @var RemoteStateAssertionInitEvent $event */
+                $event->registerRemoteStateAssertionHandler(
+                    new UserRemoteStateAssertionHandler($event->getAutomation(), $event->getMatcherRegistry())
+                );
             },
             WindowBeforeLoadEvent::class => function (EventInterface $event, CypressAutomationInterface $automation): void {
                 /** @var WindowBeforeLoadEvent $event */

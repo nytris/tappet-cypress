@@ -23,12 +23,17 @@ describe('cypress/plugin/index', () => {
         let stubPreprocessorFactory: sinon.SinonStub;
         let StubAgent: sinon.SinonStub;
         let StubUniterPlugin: sinon.SinonStub;
+        let stubConsole: { error: sinon.SinonStub; dir: sinon.SinonStub };
         let stubRequest: sinon.SinonStub;
 
         beforeEach(() => {
             stubPreprocessorFactory = sinon.stub().returns('stub-preprocessor');
             StubAgent = sinon.stub().returns({});
             StubUniterPlugin = sinon.stub().returns({});
+            stubConsole = {
+                error: sinon.stub(),
+                dir: sinon.stub(),
+            };
             stubRequest = sinon.stub();
         });
 
@@ -376,6 +381,106 @@ describe('cypress/plugin/index', () => {
                 });
             });
 
+            describe('remote state', () => {
+                function setup(): TaskHandlers {
+                    const localOn = sinon.stub<Parameters<CypressOnFunction>>();
+                    createPlugin(
+                        stubPreprocessorFactory,
+                        StubUniterPlugin as unknown as new () => object,
+                        stubRequest,
+                        undefined,
+                        stubConsole as unknown as typeof console,
+                    )(localOn, {
+                        env: {
+                            tappetApiBaseUrl: 'https://myapp.example.com',
+                            tappetApiKey: 'test-key',
+                        },
+                    });
+
+                    return getTaskHandlers(localOn);
+                }
+
+                beforeEach(() => {
+                    stubRequest.resolves({
+                        body: {
+                            json: () =>
+                                Promise.resolve({
+                                    serialisation: 'my serialisation',
+                                }),
+                        },
+                    });
+                });
+
+                it('should GET the remote state endpoint for the given handle', async () => {
+                    const handlers = setup();
+
+                    await handlers.tappetCypressFetchRemoteState({
+                        handle: 'user-activation-token',
+                    });
+
+                    expect(stubRequest.firstCall.args[0]).to.equal(
+                        'https://myapp.example.com/.well-known/tappet/remote-state/user-activation-token',
+                    );
+                    expect(stubRequest.firstCall.args[1]).to.have.property(
+                        'method',
+                        'GET',
+                    );
+                });
+
+                it('should include the Authorization header', async () => {
+                    const handlers = setup();
+
+                    await handlers.tappetCypressFetchRemoteState({
+                        handle: 'user-activation-token',
+                    });
+
+                    expect(
+                        stubRequest.firstCall.args[1].headers,
+                    ).to.have.property('Authorization', 'Bearer test-key');
+                });
+
+                it('should URL-encode the handle', async () => {
+                    const handlers = setup();
+
+                    await handlers.tappetCypressFetchRemoteState({
+                        handle: 'a/b c',
+                    });
+
+                    expect(stubRequest.firstCall.args[0]).to.equal(
+                        'https://myapp.example.com/.well-known/tappet/remote-state/a%2Fb%20c',
+                    );
+                });
+
+                it('should return the deserialised response body', async () => {
+                    const handlers = setup();
+
+                    const result = await handlers.tappetCypressFetchRemoteState(
+                        {
+                            handle: 'user-activation-token',
+                        },
+                    );
+
+                    expect(result).to.equal('my serialisation');
+                });
+
+                it('should log the error and rethrow when the request fails', async () => {
+                    const error = new Error('Network failure');
+                    stubRequest.rejects(error);
+                    const handlers = setup();
+
+                    await expect(
+                        handlers.tappetCypressFetchRemoteState({
+                            handle: 'user-activation-token',
+                        }),
+                    ).to.be.rejectedWith(error);
+
+                    expect(stubConsole.error).to.have.been.calledWith(
+                        'tappetCypressFetchRemoteState request() ERROR:',
+                    );
+                    expect(stubConsole.dir).to.have.been.calledWith(error);
+                });
+            });
+
             describe('TLS verification', () => {
                 function setup(env: Record<string, unknown> = {}): void {
                     const localOn = sinon.stub<Parameters<CypressOnFunction>>();
@@ -500,6 +605,8 @@ describe('cypress/plugin/index', () => {
                         stubPreprocessorFactory,
                         StubUniterPlugin as unknown as new () => object,
                         stubRequest,
+                        undefined,
+                        stubConsole as unknown as typeof console,
                     )(localOn, {
                         env: {
                             tappetApiBaseUrl: 'https://my-app.example.com',
@@ -702,8 +809,6 @@ describe('cypress/plugin/index', () => {
                         ],
                     });
 
-                    const consoleErrorStub = sinon.stub(console, 'error');
-                    const consoleDirStub = sinon.stub(console, 'dir');
                     const failure = new Error('network down');
                     stubRequest.rejects(failure);
 
@@ -711,10 +816,10 @@ describe('cypress/plugin/index', () => {
                         getAfterRunHandler(localOn)(),
                     ).to.be.rejectedWith(failure);
 
-                    expect(consoleErrorStub).to.have.been.calledWith(
+                    expect(stubConsole.error).to.have.been.calledWith(
                         'tappetCypressPurgeFixtures deferred-purge on after:run request() ERROR:',
                     );
-                    expect(consoleDirStub).to.have.been.calledWith(failure);
+                    expect(stubConsole.dir).to.have.been.calledWith(failure);
                 });
             });
         });

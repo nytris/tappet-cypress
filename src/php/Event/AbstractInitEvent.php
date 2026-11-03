@@ -16,6 +16,8 @@ namespace Tappet\Cypress\Event;
 use Tappet\Common\Event\EventInterface;
 use Tappet\Cypress\Adapter\AdapterInterface;
 use Tappet\Cypress\Automation\CypressAutomationInterface;
+use Tappet\Cypress\Automation\Matcher\ContextInterface;
+use Tappet\Runner\Automation\Matcher\MatcherRegistryInterface;
 
 /**
  * Class AbstractInitEvent.
@@ -48,5 +50,16 @@ abstract class AbstractInitEvent implements EventInterface
     public function getAutomation(): CypressAutomationInterface
     {
         return $this->automation;
+    }
+
+    /**
+     * Fetches the registry of matcher handlers, useful for constructor-injecting into
+     * a remote state assertion handler that itself dispatches to matchers.
+     *
+     * @return MatcherRegistryInterface<ContextInterface>
+     */
+    public function getMatcherRegistry(): MatcherRegistryInterface
+    {
+        return $this->getAdapter()->getMatcherRegistry();
     }
 }
