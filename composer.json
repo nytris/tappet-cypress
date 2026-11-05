@@ -14,7 +14,7 @@
     },
     "require": {
         "php": ">=8.1",
-        "tappet/tappet": "dev-main"
+        "tappet/tappet": "^0.3"
     },
     "require-dev": {
         "ext-posix": "*",
@@ -23,7 +23,7 @@
         "phpstan/phpstan-mockery": "^1.1",
         "phpunit/phpunit": "^10.2",
         "symfony/framework-bundle": "^5.0",
-        "tappet/bundle": "dev-main"
+        "tappet/bundle": "^0.3"
     },
     "config": {
         "platform": {
