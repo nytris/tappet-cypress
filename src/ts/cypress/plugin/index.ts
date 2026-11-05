@@ -125,6 +125,26 @@ export function createPlugin(
                     ...extraHeaders,
                     ...(options?.headers as Record<string, string> | undefined),
                 },
+            }).then(async (response) => {
+                /*
+                 * undici's request() only rejects on a network-level failure (e.g. connection
+                 * refused/DNS failure) - it resolves normally for any HTTP response, including a
+                 * non-2xx one, so a Tappet API error response (e.g. the fixtures DELETE/purge
+                 * endpoint failing) would otherwise be silently treated as success by every
+                 * caller of mappedRequest().
+                 */
+                if (
+                    response.statusCode !== undefined &&
+                    (response.statusCode < 200 || response.statusCode >= 300)
+                ) {
+                    const responseBody = await response.body.text();
+
+                    throw new Error(
+                        `Tappet API request to "${resolvedUrl}" failed with status ${response.statusCode}: ${responseBody}`,
+                    );
+                }
+
+                return response;
             });
         };
 

@@ -307,6 +307,44 @@ class CypressFunctionalTest extends AbstractFunctionalTestCase
         static::assertStringContainsString('1 failing', $allOutput);
     }
 
+    public function testCypressFailsWhenFixturePurgeRequestFails(): void
+    {
+        $packageRoot = dirname(__DIR__, 2);
+        $cypressProjectDir = $packageRoot . '/tests/Functional/Fixtures/MyTestApp/test';
+
+        // The failure spec's fixture uses a sentinel email address that the fixture app's
+        // DELETE /.well-known/tappet/fixtures route (web/index.php) recognises, responding
+        // with a 500 to simulate the Tappet API failing to purge the fixture once the
+        // otherwise-passing scenario finishes.
+        $command = sprintf(
+            '%s/node_modules/.bin/cypress run --project %s --config baseUrl=%s,specPattern=failure-spec/purge_failure.spec.php --env tappetApiBaseUrl=%s 2>&1',
+            escapeshellarg($packageRoot),
+            escapeshellarg($cypressProjectDir),
+            'http://localhost:' . $this->webServerPort,
+            'http://localhost:' . $this->webServerPort,
+        );
+
+        $output = [];
+        $exitCode = 0;
+        exec($command, $output, $exitCode);
+        $allOutput = implode("\n", $output);
+
+        static::assertNotSame(
+            0,
+            $exitCode,
+            sprintf(
+                "Cypress should have exited with a non-zero code (test was expected to fail).\nOutput:\n%s",
+                $allOutput,
+            ),
+        );
+        static::assertStringContainsString('purge_failure.spec.php', $allOutput);
+        static::assertStringContainsString(
+            'failed with status 500: Simulated purge failure',
+            $allOutput,
+        );
+        static::assertStringContainsString('1 failing', $allOutput);
+    }
+
     public function testCypressPurgesDeferredPurgeFixtureOnlyOnceTheWholeRunHasExited(): void
     {
         $packageRoot = dirname(__DIR__, 2);

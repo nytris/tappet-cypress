@@ -132,6 +132,20 @@ if ($method === 'DELETE' && $uri === '/.well-known/tappet/fixtures') {
     }
 
     $modelsToPurge = json_decode(file_get_contents('php://input'), true, flags: JSON_THROW_ON_ERROR);
+
+    // Deliberately fail the whole purge request if any fixture being purged is for this
+    // sentinel email address, so functional tests can reproduce a failing purge request.
+    foreach ($modelsToPurge as $entry) {
+        /** @var UserFixture $fixture */
+        $fixture = unserialize($entry['fixture']);
+
+        if ($fixture instanceof UserFixture && $fixture->getEmail() === 'cause-purge-failure@example.com') {
+            http_response_code(500);
+            print 'Simulated purge failure';
+            exit;
+        }
+    }
+
     foreach ($modelsToPurge as $entry) {
         /** @var UserModel $model */
         $model = unserialize($entry['model']);

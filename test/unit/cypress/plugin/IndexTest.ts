@@ -481,6 +481,28 @@ describe('cypress/plugin/index', () => {
                     );
                     expect(stubConsole.dir).to.have.been.calledWith(error);
                 });
+
+                it('should reject when the response has a non-2xx status code, even though undici itself did not reject', async () => {
+                    stubRequest.resolves({
+                        statusCode: 500,
+                        body: {
+                            json: () =>
+                                Promise.resolve({
+                                    serialisation: 'my serialisation',
+                                }),
+                            text: () => Promise.resolve('Server error'),
+                        },
+                    });
+                    const handlers = setup();
+
+                    await expect(
+                        handlers.tappetCypressFetchRemoteState({
+                            handle: 'user-activation-token',
+                        }),
+                    ).to.be.rejectedWith(
+                        'Tappet API request to "https://myapp.example.com/.well-known/tappet/remote-state/user-activation-token" failed with status 500: Server error',
+                    );
+                });
             });
 
             describe('TLS verification', () => {
@@ -822,6 +844,27 @@ describe('cypress/plugin/index', () => {
                         'tappetCypressPurgeFixtures deferred-purge on after:run request() ERROR:',
                     );
                     expect(stubConsole.dir).to.have.been.calledWith(failure);
+                });
+
+                it('should reject when the purge DELETE response has a non-2xx status code, even though undici itself did not reject', async () => {
+                    const { handlers } = setup();
+                    stubRequest.resolves({
+                        statusCode: 500,
+                        body: {
+                            json: () => Promise.resolve({}),
+                            text: () =>
+                                Promise.resolve('Simulated purge failure'),
+                        },
+                    });
+
+                    await expect(
+                        handlers.tappetCypressPurgeFixtures({
+                            modelsToPurge: [{ fixture: 'f', model: 'm' }],
+                            modelsToDeferredPurge: [],
+                        }),
+                    ).to.be.rejectedWith(
+                        'Tappet API request to "https://my-app.example.com/.well-known/tappet/fixtures" failed with status 500: Simulated purge failure',
+                    );
                 });
             });
         });
