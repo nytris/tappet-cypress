@@ -218,11 +218,13 @@ export function createPlugin(
             async tappetCypressLoadFixture({
                 fixtureClass,
                 fixturePayload,
+                fixtureHandle,
             }: {
                 fixtureClass: string;
                 fixturePayload: string;
+                fixtureHandle: string;
             }) {
-                const cacheKey = `${fixtureClass}|${fixturePayload}`;
+                const cacheKey = `${fixtureClass}|${fixturePayload}|${fixtureHandle}`;
 
                 if (loadedFixturesByKey.has(cacheKey)) {
                     return loadedFixturesByKey.get(cacheKey);
@@ -231,7 +233,9 @@ export function createPlugin(
                 const response = await mappedRequest(
                     apiBaseUrl +
                         '/.well-known/tappet/fixture/' +
-                        fixtureClass.replace(/\\/g, '--'),
+                        encodeURIComponent(fixtureClass.replace(/\\/g, '--')) +
+                        '/' +
+                        encodeURIComponent(fixtureHandle),
                     {
                         dispatcher: httpsAgent,
                         method: 'POST',

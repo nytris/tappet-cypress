@@ -186,6 +186,7 @@ describe('cypress/plugin/index', () => {
                     await handlers.tappetCypressLoadFixture({
                         fixtureClass: 'My\\Fixture',
                         fixturePayload: '{}',
+                        fixtureHandle: 'my-handle',
                     });
                 }
 
@@ -206,7 +207,7 @@ describe('cypress/plugin/index', () => {
                     await loadFixture(handlers, 'https://myapp.example.com');
 
                     expect(stubRequest.firstCall.args[0]).to.equal(
-                        'https://myapp.example.com/.well-known/tappet/fixture/My--Fixture',
+                        'https://myapp.example.com/.well-known/tappet/fixture/My--Fixture/my-handle',
                     );
                 });
 
@@ -228,7 +229,7 @@ describe('cypress/plugin/index', () => {
                     await loadFixture(handlers, 'https://myapp.example.com');
 
                     expect(stubRequest.firstCall.args[0]).to.equal(
-                        'https://127.0.0.1/.well-known/tappet/fixture/My--Fixture',
+                        'https://127.0.0.1/.well-known/tappet/fixture/My--Fixture/my-handle',
                     );
                 });
 
@@ -252,7 +253,7 @@ describe('cypress/plugin/index', () => {
                     await loadFixture(handlers, 'https://myapp.example.com');
 
                     expect(stubRequest.firstCall.args[0]).to.equal(
-                        'https://127.0.0.1/.well-known/tappet/fixture/My--Fixture',
+                        'https://127.0.0.1/.well-known/tappet/fixture/My--Fixture/my-handle',
                     );
                     expect(
                         stubRequest.firstCall.args[1].headers,
@@ -270,7 +271,7 @@ describe('cypress/plugin/index', () => {
                     );
 
                     expect(stubRequest.firstCall.args[0]).to.equal(
-                        'https://127.0.0.1/.well-known/tappet/fixture/My--Fixture',
+                        'https://127.0.0.1/.well-known/tappet/fixture/My--Fixture/my-handle',
                     );
                     expect(
                         stubRequest.firstCall.args[1].headers,
@@ -285,7 +286,7 @@ describe('cypress/plugin/index', () => {
                     await loadFixture(handlers, 'https://myapp.example.com');
 
                     expect(stubRequest.firstCall.args[0]).to.equal(
-                        'https://myapp.example.com/.well-known/tappet/fixture/My--Fixture',
+                        'https://myapp.example.com/.well-known/tappet/fixture/My--Fixture/my-handle',
                     );
                     expect(
                         stubRequest.firstCall.args[1].headers,
@@ -303,7 +304,7 @@ describe('cypress/plugin/index', () => {
                     );
 
                     expect(stubRequest.firstCall.args[0]).to.equal(
-                        'https://127.0.0.1:8443/.well-known/tappet/fixture/My--Fixture',
+                        'https://127.0.0.1:8443/.well-known/tappet/fixture/My--Fixture/my-handle',
                     );
                     expect(
                         stubRequest.firstCall.args[1].headers,
@@ -373,10 +374,11 @@ describe('cypress/plugin/index', () => {
                     await handlers.tappetCypressLoadFixture({
                         fixtureClass: 'My\\Fixture',
                         fixturePayload: '{}',
+                        fixtureHandle: 'my-handle',
                     });
 
                     expect(stubRequest.firstCall.args[0]).to.equal(
-                        'https://changed.example.com/.well-known/tappet/fixture/My--Fixture',
+                        'https://changed.example.com/.well-known/tappet/fixture/My--Fixture/my-handle',
                     );
                 });
             });

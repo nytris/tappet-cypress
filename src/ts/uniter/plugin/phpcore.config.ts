@@ -205,11 +205,13 @@ export const addons: UniterAddon[] = [
                             loadFixture: async (
                                 fixtureClass: string,
                                 fixturePayload: string,
+                                fixtureHandle: string,
                             ): Promise<string> => {
                                 return await new Promise((resolve) => {
                                     cy.task('tappetCypressLoadFixture', {
                                         fixtureClass,
                                         fixturePayload,
+                                        fixtureHandle,
                                     }).then(resolve);
                                 });
                             },
