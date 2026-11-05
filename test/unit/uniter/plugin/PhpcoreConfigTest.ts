@@ -343,6 +343,7 @@ describe('uniter/plugin/phpcore.config', () => {
                 loadFixture: (
                     fixtureClass: string,
                     fixturePayload: string,
+                    fixtureHandle: string,
                 ) => Promise<string>;
             };
 
@@ -362,7 +363,11 @@ describe('uniter/plugin/phpcore.config', () => {
             });
 
             it('should call cy.task() with tappetCypressLoadFixture', async () => {
-                await getApi().loadFixture('my-fixture', 'payload');
+                await getApi().loadFixture(
+                    'my-fixture',
+                    'payload',
+                    'my-handle',
+                );
 
                 expect(cypressCy.task).to.have.been.calledWith(
                     'tappetCypressLoadFixture',
@@ -370,14 +375,19 @@ describe('uniter/plugin/phpcore.config', () => {
                 );
             });
 
-            it('should pass the fixture class and fixture payload in the task payload', async () => {
-                await getApi().loadFixture('my-fixture', 'payload');
+            it('should pass the fixture class, fixture payload and fixture handle in the task payload', async () => {
+                await getApi().loadFixture(
+                    'my-fixture',
+                    'payload',
+                    'my-handle',
+                );
 
                 expect(cypressCy.task).to.have.been.calledWith(
                     'tappetCypressLoadFixture',
                     {
                         fixtureClass: 'my-fixture',
                         fixturePayload: 'payload',
+                        fixtureHandle: 'my-handle',
                     },
                 );
             });
