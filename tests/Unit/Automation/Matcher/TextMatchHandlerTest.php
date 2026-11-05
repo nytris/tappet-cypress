@@ -78,9 +78,19 @@ class TextMatchHandlerTest extends AbstractTestCase
     public function testMatchExactTextAssertsExactTextViaCyApi(): void
     {
         $matcher = new ExactText('some text');
+        $textChainable = mock();
+        $trimmedChainable = mock();
 
         $this->target->expects()
-            ->should('have.text', 'some text')
+            ->invoke('text')
+            ->once()
+            ->andReturn($textChainable);
+        $textChainable->expects()
+            ->invoke('trim')
+            ->once()
+            ->andReturn($trimmedChainable);
+        $trimmedChainable->expects()
+            ->should('equal', 'some text')
             ->once();
 
         $this->handler->getHandlers()[ExactText::class]($matcher, $this->context);

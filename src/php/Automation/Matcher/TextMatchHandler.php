@@ -59,7 +59,7 @@ class TextMatchHandler implements MatchHandlerInterface
     {
         $target = $this->automation->resolve($context);
 
-        $target->should('have.text', $matcher->getText());
+        $target->invoke('text')->invoke('trim')->should('equal', $matcher->getText());
     }
 
     /**
